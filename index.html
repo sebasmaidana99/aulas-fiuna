@@ -663,11 +663,13 @@ function plateHtml(c){
   </section>`;
 }
 
+// Una misma clase figura una vez por carrera (CB-ECA, CB-MCT): mostrarla una sola vez.
+function uniq(list){ const seen=new Set(); return list.filter(c=>{const k=`${c.id}|${c.ini}|${c.aula}`; if(seen.has(k)) return false; seen.add(k); return true;}); }
+
 function viewMis(classes){
   let h='';
   // Una misma clase figura una vez por carrera (CB-ECA, CB-MCT): mostrarla una sola vez.
-  const seen=new Set();
-  const mine=classes.filter(c=>{const k=`${c.id}|${c.ini}`; if(!state.favs.has(c.id)||seen.has(k)) return false; seen.add(k); return true;});
+  const mine=uniq(classes.filter(c=>state.favs.has(c.id)));
   const q=norm(state.q);
   if(mine.length){
     const upcoming=mine.filter(c=>timeState(c)!=='done');
@@ -679,19 +681,43 @@ function viewMis(classes){
   }
   h+=`<h2 class="sec">${mine.length?'Agregar otra materia':'Marcá tus materias'}</h2>`;
   if(!mine.length) h+=`<p class="hint">Buscá tu materia y tocá la estrella. La próxima vez vas a ver directo tu aula y si llegó el profesor.</p>`;
-  h+=`<div class="search"><label class="sr" for="q">Buscar</label><input id="q" type="search" placeholder="Cálculo, Ing. Pintos o R7" value="${esc(state.q)}" autocomplete="off" enterkeyhint="search">${state.q?`<button class="clear" type="button" aria-label="Borrar búsqueda"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`:''}</div>`;
-  if(q){
-    const found=classes.filter(c=>norm([c.asig,c.doc,c.aula,c.moved,c.car,c.reem].join(' ')).includes(q));
-    h+= found.length ? `<ul class="list">${found.map(rowHtml).join('')}</ul>` : `<div class="empty"><b>No aparece "${esc(state.q)}" este día</b>Probá con otra palabra de la materia, el apellido del docente o el aula.</div>`;
-  }
+  h+=`<div class="search"><label class="sr" for="q">Buscar</label><input id="q" type="search" placeholder="Cálculo, Ing. Pintos o R7" value="${esc(state.q)}" autocomplete="off" enterkeyhint="search"><button class="clear" type="button" aria-label="Borrar búsqueda" ${state.q?'':'hidden'}><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;
+  h+=`<div id="results">${resultsHtml(classes)}</div>`;
   return h;
 }
 
-function viewHorario(classes){
+const SEARCH_MAX=40;
+const hay = c => c._hay ??= norm([c.asig,c.doc,c.aula,c.moved,c.car,c.reem].join(' '));
+function resultsHtml(classes){
+  const words=norm(state.q).split(' ').filter(Boolean);
+  if(!words.length) return '';
+  const found=uniq(classes.filter(c=>words.every(w=>hay(c).includes(w))));
+  if(!found.length) return `<div class="empty"><b>No aparece "${esc(state.q)}" este día</b>Probá con otra palabra de la materia, el apellido del docente o el aula.</div>`;
+  const more=found.length>SEARCH_MAX ? `<p class="hint">Mostrando ${SEARCH_MAX} de ${found.length}. Escribí algo más para achicar la lista.</p>` : '';
+  return `<ul class="list">${found.slice(0,SEARCH_MAX).map(rowHtml).join('')}</ul>${more}`;
+}
+// Actualiza solo la lista: el teclado no se cierra y no se redibuja la página entera.
+let searchTimer;
+function onSearch(value){
+  state.q=value;
+  const clr=document.querySelector('.search .clear'); if(clr) clr.hidden=!value;
+  clearTimeout(searchTimer);
+  searchTimer=setTimeout(()=>{
+    const e=state.cache[keyOf(state.date)], box=$('#results');
+    if(box && e && e.classes) box.innerHTML=resultsHtml(e.classes);
+  },120);
+}
+
+function chipsHtml(classes){
   const cars=['Todas',...[...new Set(classes.flatMap(c=>c.carreras))].sort()];
   if(!cars.includes(state.car)) state.car='Todas';
-  let list=classes.filter(c=>state.car==='Todas'||c.carreras.includes(state.car));
-  let h=`<div class="chips" role="group" aria-label="Carrera">${cars.map(c=>`<button data-car="${esc(c)}" aria-pressed="${c===state.car}">${esc(c)}</button>`).join('')}</div>`;
+  return `<div class="chips" role="group" aria-label="Carrera">${cars.map(c=>`<button data-car="${esc(c)}" aria-pressed="${c===state.car}">${esc(c)}</button>`).join('')}</div>`;
+}
+const byCar = classes => classes.filter(c=>state.car==='Todas'||c.carreras.includes(state.car));
+
+function viewHorario(classes){
+  let list=byCar(classes);
+  let h=chipsHtml(classes);
   if(isToday()) h+=`<label class="toggle"><input type="checkbox" id="hide" ${state.hideDone?'checked':''}> Ocultar las que ya terminaron</label>`;
   if(isToday() && state.hideDone) list=list.filter(c=>timeState(c)!=='done');
   if(!list.length) return h+`<div class="empty"><b>No quedan clases${state.car!=='Todas'?' de '+esc(state.car):''}</b>${isToday()?'Desmarcá "ocultar" para ver las de más temprano.':'Elegí otra carrera o día.'}</div>`;
@@ -703,26 +729,38 @@ function viewHorario(classes){
   return h;
 }
 
-function avisos(classes){
+function avisos(all){
+  const classes=uniq(all);
   return {
     off: classes.filter(c=>c.off),
     aus: classes.filter(c=>c.asis==='A' && !c.off),
     mov: classes.filter(c=>c.moved && !c.off),
     rem: classes.filter(c=>(c.reem || c.asis==='R') && !c.off),
-    sin: classes.filter(c=>!c.aula && !c.moved && !c.off),
+    sin: classes.filter(c=>!c.aula && !c.moved && !c.off && !c.dtic),   // las de DTICs tienen su propia distribución
     aa: classes.filter(c=>c.asis==='AA')
   };
 }
+// Novedades que le cambian el día al alumno: no hay clase, no vino el docente, otra aula, otra persona.
+const mineAvisos = classes => uniq(classes.filter(c=>state.favs.has(c.id) && (c.off||c.asis==='A'||c.moved||c.reem||c.asis==='R')));
+
 function viewAvisos(classes){
-  const a=avisos(classes);
+  let h='';
+  if(state.favs.size){
+    const mine=mineAvisos(classes);
+    h+= mine.length ? `<h2 class="sec">Tus clases</h2><ul class="list">${mine.map(rowHtml).join('')}</ul>`
+                    : `<div class="notice">Tus clases no tienen novedades este día.</div>`;
+    h+=`<h2 class="sec">Toda la facultad</h2>`;
+  }
+  h+=chipsHtml(classes);
+  const a=avisos(byCar(classes));
   const sec=(t,hint,arr)=>arr.length?`<h2 class="sec">${t}</h2><p class="hint">${hint}</p><ul class="list">${arr.map(rowHtml).join('')}</ul>`:'';
-  const h=sec('No hay clase hoy','Según la planilla, no se habilitó o pasó a otro día.',a.off)
+  const body=sec('No hay clase hoy','Según la planilla, no se habilitó o pasó a otro día.',a.off)
     +sec('Docente ausente','Registrado como ausente por bedelía.',a.aus)
     +sec('Cambio de aula','Hoy la clase es en otra aula. Se muestra la nueva y, tachada, la habitual.',a.mov)
     +sec('Con reemplazo','Da la clase otra persona.',a.rem)
     +sec('Marcadas como AA','La planilla usa este código pero no lo explica en la leyenda.',a.aa)
     +sec('Sin aula asignada','Consultá en bedelía antes de ir.',a.sin);
-  return h || `<div class="empty"><b>Sin novedades este día</b>No hay ausencias, cambios de aula ni reemplazos cargados.</div>`;
+  return h + (body || `<div class="empty"><b>Sin novedades${state.car!=='Todas'?' de '+esc(state.car):''} este día</b>No hay ausencias, cambios de aula ni reemplazos cargados.</div>`);
 }
 
 function render(){
@@ -755,8 +793,8 @@ function render(){
     cnt.hidden=true; return;
   }
   const classes=entry.classes;
-  const a=avisos(classes), n=a.off.length+a.aus.length+a.mov.length;
-  cnt.hidden=!n; cnt.textContent=n;
+  const n=mineAvisos(classes).length;
+  cnt.hidden=!n; cnt.textContent=n; cnt.setAttribute('aria-label', `${n} ${n===1?'novedad':'novedades'} en tus clases`);
 
   let pre='';
   if(entry.demo) pre+=`<div class="notice">Modo demo con los datos del lunes 5/10/2026.</div>`;
@@ -780,11 +818,11 @@ document.addEventListener('click',e=>{
     state._pop=on?id:null; render(); state._pop=null;
     $('#live').textContent=on?'Agregada a Mis clases':'Quitada de Mis clases';
   }
-  else if(b.classList.contains('clear')){ state.q=''; state._focusQ=true; render(); }
+  else if(b.classList.contains('clear')){ const qi=$('#q'); qi.value=''; qi.focus(); onSearch(''); }
   else if(b.id==='refresh'){ load(state.date, true); }
 });
 document.addEventListener('input',e=>{
-  if(e.target.id==='q'){ state.q=e.target.value; state._focusQ=true; render(); }
+  if(e.target.id==='q'){ state._focusQ=true; onSearch(e.target.value); }
   if(e.target.id==='hide'){ state.hideDone=e.target.checked; render(); }
 });
 document.addEventListener('focusout',e=>{ if(e.target.id==='q') state._focusQ=false; });
