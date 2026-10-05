@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dónde es mi clase · FIUNA</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚪</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F3F5F4;--surface:#FFFFFF;--ink:#18202B;--ink-2:#4B5563;--ink-3:#7C8592;--rule:#DCE1E5;
+  --signal:#1F4FD1;--signal-bg:#E5ECFD;--ok:#16794A;--ok-bg:#E3F4EA;--bad:#C0302B;--bad-bg:#FDE7E5;
+  --warn:#8F5400;--warn-bg:#FFF1CC;
+  --plate:#18202B;--plate-ink:#F3F5F4;
+  --sign:'Big Shoulders Display','Arial Narrow','Roboto Condensed',sans-serif;
+  --body:'Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',sans-serif;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#11151B;--surface:#181D25;--ink:#E9EDF2;--ink-2:#AAB3BF;--ink-3:#7A8492;--rule:#2A313B;
+  --signal:#86A6FF;--signal-bg:#172647;--ok:#5BD08F;--ok-bg:#12301F;--bad:#FF7B72;--bad-bg:#3A1715;
+  --warn:#F2B84B;--warn-bg:#3A2C0E;--plate:#E9EDF2;--plate-ink:#11151B;}}
+:root[data-theme="dark"]{
+  --paper:#11151B;--surface:#181D25;--ink:#E9EDF2;--ink-2:#AAB3BF;--ink-3:#7A8492;--rule:#2A313B;
+  --signal:#86A6FF;--signal-bg:#172647;--ok:#5BD08F;--ok-bg:#12301F;--bad:#FF7B72;--bad-bg:#3A1715;
+  --warn:#F2B84B;--warn-bg:#3A2C0E;--plate:#E9EDF2;--plate-ink:#11151B;}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.wrap{max-width:640px;margin:0 auto;padding:16px 16px 48px}
+
+header.top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+.brand h1{font-family:var(--sign);font-weight:800;font-size:34px;line-height:.95;margin:0;letter-spacing:.2px}
+.brand p{margin:4px 0 0;color:var(--ink-2);font-size:14px}
+.refresh{border:1px solid var(--rule);background:var(--surface);border-radius:10px;padding:8px 10px;font-size:14px;color:var(--ink-2);white-space:nowrap}
+.refresh[aria-busy="true"]{opacity:.6}
+
+.week{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;margin-bottom:12px}
+.week button{border:0;background:transparent;border-radius:10px;padding:6px 0 7px;display:flex;flex-direction:column;align-items:center;line-height:1.1;color:var(--ink-2)}
+.week button b{font-family:var(--sign);font-weight:800;font-size:24px;color:var(--ink)}
+.week button small{font-size:13px}
+.week button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.week button[aria-pressed="true"] b{color:var(--paper)}
+.week button.today:not([aria-pressed="true"]) b{color:var(--signal)}
+
+nav.views{display:flex;border-bottom:1px solid var(--rule);margin-bottom:16px;position:sticky;top:env(safe-area-inset-top,0px);background:var(--paper);z-index:5}
+nav.views button{flex:1;border:0;background:transparent;padding:12px 4px 10px;font-weight:700;font-size:15px;color:var(--ink-3);border-bottom:3px solid transparent;margin-bottom:-1px}
+nav.views button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+nav.views .count{display:inline-block;min-width:20px;padding:0 6px;margin-left:4px;border-radius:10px;background:var(--bad-bg);color:var(--bad);font-size:12px;line-height:20px}
+
+.notice{border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:15px;background:var(--surface);border:1px solid var(--rule)}
+.notice.warn{background:var(--warn-bg);border-color:transparent;color:var(--ink)}
+.notice.bad{background:var(--bad-bg);border-color:transparent}
+.notice a{color:inherit;font-weight:700}
+
+.search{position:relative;margin-bottom:14px}
+.search input{width:100%;border:1px solid var(--rule);background:var(--surface);border-radius:12px;padding:12px 14px;font-size:16px}
+.search input::placeholder{color:var(--ink-3)}
+
+/* La placa: el elemento protagonista */
+.plate{background:var(--plate);color:var(--plate-ink);border-radius:6px;padding:16px 18px 18px;margin-bottom:18px;position:relative}
+.plate.live{background:var(--signal);color:#fff}
+.plate .when{font-size:14px;opacity:.85;margin:0}
+.plate .code{font-family:var(--sign);font-weight:800;font-size:clamp(96px,30vw,168px);line-height:.82;margin:10px 0 8px;letter-spacing:-1px;word-break:break-word}
+.plate .code.long{font-size:clamp(56px,15vw,96px);line-height:.9}
+.plate .was{font-size:14px;opacity:.85;margin:0 0 6px}
+.plate .subj{font-size:19px;font-weight:700;margin:0;line-height:1.25}
+.plate .meta{font-size:14px;opacity:.85;margin:2px 0 10px}
+.plate .st{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.14);border-radius:999px;padding:5px 12px 5px 10px;font-size:14px;font-weight:700}
+.plate .st,.plate .st.ok,.plate .st.bad,.plate .st.warn,.plate .st.info,.plate .st.neutral{color:inherit}
+.plate .st i{width:9px;height:9px;border-radius:50%;background:currentColor}
+.plate .st.ok i{background:#5BD08F}.plate .st.bad i{background:#FF7B72}.plate .st.warn i{background:#F2B84B}
+
+h2.sec{font-family:var(--sign);font-weight:800;font-size:22px;margin:22px 0 4px;line-height:1}
+p.hint{color:var(--ink-2);font-size:14px;margin:0 0 8px}
+
+.list{list-style:none;margin:0;padding:0}
+.cls{display:grid;grid-template-columns:72px minmax(0,1fr) 36px;gap:12px;align-items:start;padding:12px 0;border-bottom:1px solid var(--rule)}
+.cls.live{border-left:4px solid var(--signal);padding-left:10px;margin-left:-14px}
+.cls.done{opacity:.5}
+.cls .room{font-family:var(--sign);font-weight:800;font-size:34px;line-height:.95;word-break:break-word}
+.cls .room.small{font-size:22px;line-height:1.05}
+.cls .room.moved{color:var(--warn)}
+.cls .room s{display:block;font-family:var(--body);font-weight:400;font-size:12px;color:var(--ink-3);margin-top:3px;text-decoration:line-through}
+.cls .subj{font-weight:700;font-size:16px;line-height:1.3;margin:0}
+.cls .meta{color:var(--ink-2);font-size:14px;margin:2px 0 6px}
+.cls .meta .t{color:var(--ink);font-weight:700}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:700;margin-right:10px}
+.st i{width:8px;height:8px;border-radius:50%;background:var(--ink-3);flex:none}
+.st.ok{color:var(--ok)}.st.ok i{background:var(--ok)}
+.st.bad{color:var(--bad)}.st.bad i{background:var(--bad)}
+.st.warn{color:var(--warn)}.st.warn i{background:var(--warn)}
+.st.info{color:var(--signal)}.st.info i{background:var(--signal)}
+.st.neutral{color:var(--ink-3);font-weight:400}
+.note{display:block;font-size:13px;color:var(--ink-2);margin-top:3px}
+.note a{color:var(--signal)}
+.star{border:0;background:transparent;padding:4px;width:36px;height:36px;border-radius:50%;color:var(--ink-3)}
+.star svg{width:22px;height:22px;display:block;margin:auto}
+.star[aria-pressed="true"]{color:#E0A100}
+.star[aria-pressed="true"] path{fill:currentColor}
+
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;margin-bottom:6px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{border:1px solid var(--rule);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:14px;white-space:nowrap;color:var(--ink-2)}
+.chips button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2);margin-bottom:6px}
+.toggle input{width:18px;height:18px;accent-color:var(--ink)}
+
+.block{margin-top:18px}
+.block h3{display:flex;align-items:baseline;gap:10px;margin:0;padding-bottom:4px;border-bottom:2px solid var(--ink)}
+.block h3 b{font-family:var(--sign);font-weight:800;font-size:30px;line-height:1}
+.block h3 span{font-size:14px;color:var(--ink-2);font-weight:400}
+.block h3 em{font-style:normal;font-size:13px;font-weight:700;color:#fff;background:var(--signal);border-radius:999px;padding:2px 9px;margin-left:auto}
+.block.past h3{border-bottom-color:var(--rule)}
+
+.empty{padding:28px 0;color:var(--ink-2);font-size:15px}
+.empty b{display:block;color:var(--ink);font-size:17px;margin-bottom:4px}
+footer{margin-top:36px;color:var(--ink-3);font-size:13px;line-height:1.6}
+footer a{color:var(--ink-2)}
+.skeleton{height:14px;border-radius:6px;background:var(--rule);margin:14px 0;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.skeleton{animation:none}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Dónde es<br>mi clase</h1>
+      <p id="sub">Facultad de Ingeniería UNA</p>
+    </div>
+    <button class="refresh" id="refresh" type="button">Actualizar</button>
+  </header>
+
+  <div class="week" id="week" role="group" aria-label="Día"></div>
+
+  <nav class="views" role="tablist">
+    <button role="tab" data-v="mis" aria-selected="true">Mis clases</button>
+    <button role="tab" data-v="horario" aria-selected="false">Por horario</button>
+    <button role="tab" data-v="avisos" aria-selected="false">Avisos<span class="count" id="avcount" hidden></span></button>
+  </nav>
+
+  <main id="main" aria-live="polite"></main>
+
+  <footer>
+    Los datos salen de la planilla pública de Dirección Académica y se actualizan solos cada 2 minutos mientras tenés la página abierta. La asistencia se carga durante el día: si una clase dice "aún no registrado", todavía no pasaron a controlar.<br>
+    <a href="https://docs.google.com/spreadsheets/d/1kO0J6h6HiD9Pt84mjKedgPE0t37aWLnxecfHLic0rQw/edit" target="_blank" rel="noopener">Ver planilla original</a>
+  </footer>
+</div>
+
+<script>
+/* ============ Configuración ============ */
+const CONFIG = {
+  SHEET_ID: '1kO0J6h6HiD9Pt84mjKedgPE0t37aWLnxecfHLic0rQw',
+  // Opcional pero recomendado: una API key de Google Sheets API (gratis).
+  // Con ella la web lista las pestañas reales y no tiene que adivinar nombres.
+  API_KEY: '',
+  REFRESH_MS: 120000,
+  DTIC_URL: 'http://reservastic.ing.una.py/Web/view-schedule.php'
+};
+
+// <core>
+const DAY_NAMES = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const DAY_SHORT = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const strip = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const norm = s => strip(String(s ?? '')).trim().toUpperCase().replace(/\s+/g,' ');
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const pad = n => String(n).padStart(2,'0');
+
+function parseCSV(text){
+  const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i++} else q=false } else f+=c; }
+    else if(c==='"') q=true;
+    else if(c===','){row.push(f);f=''}
+    else if(c==='\n'){row.push(f);rows.push(row);row=[];f=''}
+    else if(c!=='\r') f+=c;
+  }
+  if(f!==''||row.length){row.push(f);rows.push(row)}
+  return rows;
+}
+
+function toMin(v){
+  const m=String(v??'').match(/(\d{1,2})[:.](\d{2})/);
+  return m ? (+m[1])*60 + (+m[2]) : null;
+}
+const fmtMin = n => `${Math.floor(n/60)}:${pad(n%60)}`;
+
+function findDate(rows){
+  for(const r of rows.slice(0,8)) for(const c of r){
+    const m=String(c).match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+    if(m && /(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d\/\d)/i.test(c)) return {d:+m[1],m:+m[2]};
+  }
+  return null;
+}
+
+const ROOM_RX=[/\bEN\s+(.+?)\s+(?:POR|X)\s*HOY\b/i,/\b(?:POR|X)\s*HOY\s+(?:EN\s+)?(.+)$/i];
+function roomFrom(s){
+  const t=String(s||'').trim(); if(!t) return null;
+  for(const rx of ROOM_RX){const m=t.match(rx); if(m && m[1].trim()) return m[1].trim().toUpperCase();}
+  return null;
+}
+
+function parseRows(rows){
+  const col={n:0,sem:1,car:2,asig:3,secc:4,tipo:5,doc:6,obs:7,reem:8,ini:9,fin:10,aula:11,asis:12};
+  let start=0;
+  const h=rows.findIndex(r=>r.some(c=>norm(c)==='ASIGNATURA'));
+  if(h>=0){
+    start=h+1;
+    const names={SEMESTRE:'sem',CARRERA:'car',ASIGNATURA:'asig',SECC:'secc',TIPO:'tipo',DOCENTE:'doc',OBSERVACION:'obs',REEMPLAZANTE:'reem','HORA INICIO':'ini','HORA FIN':'fin',AULA:'aula'};
+    rows[h].forEach((c,i)=>{const k=norm(c); if(names[k]) col[names[k]]=i; if(/^\(?P\s*-\s*R/.test(k)) col.asis=i;});
+  }
+  const classes=[];
+  for(let i=start;i<rows.length;i++){
+    const r=rows[i], g=k=>String(r[col[k]]??'').trim();
+    const asig=g('asig'), ini=toMin(g('ini')), fin=toMin(g('fin'));
+    if(!asig || ini==null) continue;
+    let reem=g('reem'), obs=g('obs');
+    let moved=roomFrom(obs);
+    const rr=roomFrom(reem); if(rr){ moved=moved||rr; reem=''; }
+    if(moved) obs=obs.replace(/.*/, m=>roomFrom(m)?'':m);
+    const carRaw=g('car').toUpperCase();
+    const carreras=carRaw.split(/[-\/]/).map(s=>s.trim()).filter(Boolean);
+    const aula=g('aula').replace(/^-+$/,'');
+    const doc=g('doc'), asis=norm(g('asis'));
+    classes.push({
+      id:`${carRaw}|${norm(asig)}|${norm(g('secc'))}|${norm(g('tipo'))}`,
+      sem:g('sem'), car:carRaw, carreras, asig, secc:g('secc'), tipo:g('tipo'),
+      doc, obs, reem, ini, fin: fin ?? ini+110, aula, moved, asis,
+      dtic: !doc && !asis && (carreras.includes('ECA') || norm(aula)==='CTC')
+    });
+  }
+  classes.sort((a,b)=>a.ini-b.ini || a.asig.localeCompare(b.asig));
+  return {fecha:findDate(rows), classes};
+}
+
+function sheetNameCandidates(date){
+  const dn=DAY_NAMES[date.getDay()], d=date.getDate(), m=date.getMonth()+1, y=date.getFullYear();
+  const names=[dn.toUpperCase(), cap(dn), strip(dn).toUpperCase(), cap(strip(dn)), dn];
+  const dates=[`${d}/${pad(m)}/${y}`,`${pad(d)}/${pad(m)}/${y}`,`${d}/${m}/${y}`,`${pad(d)}/${m}/${y}`,`${pad(d)}/${pad(m)}/${String(y).slice(2)}`];
+  const out=[]; for(const n of names) for(const ds of dates){const s=`${n} ${ds}`; if(!out.includes(s)) out.push(s);}
+  return out;
+}
+
+function classStatus(c, now, isToday){
+  const reem = c.reem ? c.reem.toLowerCase().replace(/(^|[\s.])([a-záéíóúñ])/g,(m,a,b)=>a+b.toUpperCase()) : '';
+  if(c.dtic) return {k:'neutral', t:'Se registra en DTICs', link:true};
+  switch(c.asis){
+    case 'A': return {k:'bad', t:'Docente ausente'};
+    case 'P': return reem ? {k:'ok', t:`Presente: reemplazo ${reem}`} : {k:'ok', t:'Docente presente'};
+    case 'R': return {k:'warn', t: reem ? `Reemplazo: ${reem}` : 'Con reemplazo'};
+    case 'T': return {k:'info', t:'Tutoría'};
+    case 'REC': return {k:'info', t:'Recuperación'};
+    case 'AA': return {k:'warn', t:'Marcado como AA'};
+  }
+  if(c.asis) return {k:'neutral', t:`Marcado como ${c.asis}`};
+  if(reem) return {k:'warn', t:`Viene reemplazo: ${reem}`};
+  if(!isToday || now < c.ini) return {k:'neutral', t:'Aún no registrado'};
+  if(now <= c.fin) return {k:'warn', t:'Empezó y no hay registro todavía'};
+  return {k:'neutral', t:'Sin registro'};
+}
+// </core>
+
+/* ============ Demo (?demo) con la planilla del lunes 5/10/2026 ============ */
+const DEMO = `||||||||||||
+DIRECCIÓN ACADÉMICA - DISTRIBUCION DE AULAS - HORARIO DE CLASES-PRIMER CICLO 2026||||||||||||
+DIA|||lunes 05/10/26|||||||||
+N|SEMESTRE|CARRERA|ASIGNATURA|SECC|TIPO|DOCENTE|OBSERVACION|REEMPLAZANTE|HORA INICIO|HORA FIN|AULA|(P - R - A - AA - T - R)
+1|1º|CB|DIBUJO TECNICO|B|TEO|ING OSCAR PEREIRA|||7:30|9:29|R1|p
+2|1º|CB|CALCULO 1|C|TEO|ING. CESAR BOGADO|||7:30|9:29|R4|p
+3|1º|CB|MECANICA Y CALOR|A|TEO|ING. MARTIN BALMACEDA||ALANBOGADO|7:30|10:29|S3|P
+4|3º|CB|ESTATICA|B|TEO|ING. RUBEN LOPEZ|||7:30|10:29|F3|p
+5|7º|ECA|SISTEMAS DE MODULACIÓN 2|A|PRAC||||8:00|9:50|E2|
+|||PROBABILIDAD|F|T|DR. ANTONIO AQUINO|||8:00|9:50|F2|p
+6||COMPLE|ORGANIZACIÓN DE EMPRESAS|B|TEO|ING. CHRISTIAN MENDOZA|||8:00|9:50|G4|aa
+7|1º|CB|GEOMETRIA VECTORIAL|D|TEO|ING. RODRIGO ROMERO|||8:00|9:59|S5|
+8|1º|CB|ALGEBRA MODERNA|E|TEO|ING. NESTOR BARRETO|POR HOY G1||8:00|9:59|F5|p
+9|3º|CB-ECA|ESTRUCTURA DE DATOS Y ALGORITMOS|A|TEO|ING. JOSE COLBES|||8:00|9:59|R6|p
+10|3º|CB-MCT|ESTRUCTURA DE DATOS Y ALGORITMOS|A|TEO|ING. JOSE COLBES|||8:00|9:59|R6|p
+11|1º|CB|GEOMETRIA DESCRIPTIVA|G|TEO|ING. ROQUE RAMIREZ|||8:30|10:59|E4|P
+12|OPT|ELE|INTRODUCCIÓN A LA ENERGÍA FOTOVOLTAICA|A|TEO|ING. JEAN PULFER|||9:00|10:50|Q3|P
+13|1º|CB|DIBUJO TECNICO|B|PRAC|ALDO CORONEL|||9:30|11:29|R4|p
+14|1º|CB|CALCULO 1|C|PRAC|ING. JAVIER OJEDA|||9:30|11:29|F1|p
+|||PROBABILIDAD|F|PRAC|HERMES GARCIA|||10:00|11:50|F2|p
+15|5º|ECA|ANALISIS DE CIRCUITOS 2|A|TEO||||10:00|11:50|Q4|
+16|1º|CB|GEOMETRIA VECTORIAL|D|PRAC|ING. ADILSON DA SILVA|||10:00|11:59|S5|p
+17|3º|CB-ECA|ESTRUCTURA DE DATOS Y ALGORITMOS|A|PRAC|LIC. OMAR CABRERA|||10:00|11:59|R6|p
+18|3º|CB-MCT|ESTRUCTURA DE DATOS Y ALGORITMOS|A|PRAC|LIC. OMAR CABRERA|||10:00|11:59|R6|p
+19|1º|CB|MECANICA Y CALOR|A|PRAC|ALAN BOGADO|||10:30|12:29|S3|p
+20|1º|CB|ALGEBRA MODERNA|E|PRAC|ING. DAVID FRETES|||10:30|12:29|G1|P
+21|1º|CB|GEOMETRIA DESCRIPTIVA|G|PRAC|ARTURO GARAY|||10:30|12:29|E4|p
+22|3º|CB|ESTATICA|B|PRAC|ING. GERARDO PIRIS|||10:30|12:29|F3|P
+23|5º|ELE|RESISTENCIA DE MATERIALES|A|PRAC|ING. EDUARDO BECKER|||11:00|12:50|S2|p
+24|OPT|ELE|INTRODUCCIÓN A LA ENERGÍA FOTOVOLTAICA|A|PRAC|ING. JUAN FARIÑA|||11:00|12:50|Q3|P
+25|5º|MEC|RESISTENCIA DE MATERIALES|A|PRAC|ING. EDUARDO BECKER|||11:00|12:50|S2|p
+26|5º|GYA|SOCIOLOGIA|A|TEO|DRA. MARIA ARANDA|||11:00|13:50|G4|P
+27|1º|CB|GEOMETRIA DESCRIPTIVA|F|TEO|ING ROQUE RAMIREZ|||12:30|14:29|E3|P
+28|5º|CIV|HIDRÁULICA DE CONDUCTOS FORZADOS|A|TEO|ING ALFREDO LOPEZ|||13:00|14:50|G1|A
+29|5º|CIV|MATERIALES DE OBRAS CIVILES 2|B|TEO|ING DIEGO FUSTER|||13:00|14:50|G2|P
+30|7º|CIV|HIDROLOGIA|A|PRAC|ING MARGARITA PEREIRA|||13:00|14:50|S7|P
+31|7º|CIV|HIDROLOGIA|B|PRAC|ING ANDRES WHERLE|X HOY S7||13:00|14:50|S6|P
+32|7º|IND|OPERACIONES INDUSTRIALES|A|PRAC|ING. DAIRA PEREZ|||13:00|14:50|F2|P
+33|5º|ECA|ELECTRONICA 1|A|TEO||||13:00|14:50|CTC|
+34|3º|CB|ELECTRICIDAD Y MAGNETISMO|A|TEO|ING. MARTIN BALMACEDA|||13:30|16:29|S3|A
+|||CLUB DE MATEMATICA|||DR. INOCENCIO ORTIZ|||14:00|16:00|S1|
+||GYA|CIENCIA AMBIENTAL|A|TEO|ING. ROSALIA FARIÑA|||14:00|15:50|R1|P
+|OPT|ELE|INSTALACION ELECTRICA ESPECIALES|A|TEO|ING MARCOS SANABRIA|||14:00|15:50|Q4|A
+35|7º I SPyC|ECA|SENSORES Y ACTUADORES|A|TEO||||14:00|15:50|CTC|
+36|9º|ECA|MICROONDAS|A|TEO||||14:00|15:50|CTC|
+38|9°|GYA|GESTION INTEGRAL DE RESIDUOS|A|PRAC|ING MONSERRAT GARCIA||AUX CARDOZO|14:00|15:50|F1|P
+39|7°|MEC|LABORATORIO MECÁNICO 2|A|PRAC|ING ADAN LEIVA|X HOY LAB ESTRELLA||14:00|15:50|E2|P
+40|1º|CB|GEOMETRIA DESCRIPTIVA|F|PRAC|FERNANDO OVANDO|||14:30|16:29|E3|P
+41|5º|CIV|HIDRÁULICA DE CONDUCTOS FORZADOS|A|PRAC|ING FLORENCIA VENEGAS|||15:00|16:50|G1|P
+42|5º|CIV|MATERIALES DE OBRAS CIVILES 2|B|PRAC|ING RICHAR ROLON|||15:00|16:50|G2|A
+43|7º|CIV|HIDROLOGIA|A|TEO|ING LUIS AVILA||ING WHERLE|15:00|16:50|S7|P
+44|7º|CIV|HIDROLOGIA|B|TEO|ING LUIS AVILA|X HOY S7||15:00|16:50|S6|P
+45|7º|ELE|SISTEMAS DE CONTROL AUTOMATICO|A|TEO|ING SERGIO TOLEDO|||16:00|17:50|R4|P
+46|7º I CiC|ECA|MACHINE LEARNING|A|TEO||||16:00|17:50|CTC|
+47|7º I SPyC|ECA|SENSORES Y ACTUADORES|A|PRAC||||16:00|17:50|CTC|
+48|9º|ECA|SISTEMAS DE TELEVISIÓN|A|LAB||||16:00|17:50|CTC|
+49|5º|GYA|GEODESIA GRAVIMETRICA|A|TEO|ING ANAHI IBAÑEZ|||16:00|17:50|R5|P
+50|9°|GYA|GESTION Y CONSERVACION DE RECURSOS NATURALES|A|TEO|ING ROSALIA FARIÑA|||16:00|17:50|R1|P
+51|7°|MEC|LABORATORIO MECÁNICO 2|A|TEO|ING GUSTAVO DAVALOS|X HOY LAB ESTRELLA||16:00|17:50|E2|P
+52|5º|IND|INVESTIGACION DE OPERACIONES 2|A|TEO|ING DIEGO PINTOS|||16:00|17:50|R7|P
+53|9º|ELE|TRANSMISIÓN DE ENERGÍA ELÉCTRICA|A|TEO|ING FRANCISCO SCUDERO||ING ALCARAZ|16:00|19:50|F2|P
+54|3º|CB|ELECTRICIDAD Y MAGNETISMO|A|PRAC|ING SAMUEL GRAU||AUX OTTO|16:30|18:29|G5|P
+55|5º|CIV|GEOTECNIA|A|TEO|ING PABLINA BALBUENA||ING DELVALLE|17:00|18:50|G1|P
+56|5º|CIV|GEOTECNIA|B|TEO|ING. MIGUEL PAATS|||17:00|18:50|G2|P
+57|5º|ELE|MEDICIONES E INSTRUMENTACIÓN|A|TEO|ING LEANDRO BRITOS|||17:00|18:50|R8|P
+58|7°|GYA|METEOROLOGIA Y CLIMATOLOGIA|A|TEO|ING FERNANDO MENDEZ|||17:00|18:50|LAB|P
+59|5º|MEC|ELECTROTECNIA|A|TEO|ING JUAN ENCINA||POR HOY LAB|17:00|18:50|Q1|P
+60|OPT|MCT|INSTALACION ELECTRICA INDUSTRIALES|A|TEO||||17:00|18:50|S2|
+61|9º|CIV|HIDROTECNIA 2|A|TEO|ING LUIS AVILA|||17:00|19:50|S7|P
+62|9º|CIV|HIDROTECNIA 2|B|TEO|ING LUIS AVILA|||17:00|19:50|S6|P
+63|3º|CB|ANALISIS VECTORIAL|C|TEO|ING MIRIAN MEDINA|||17:30|19:59|S5|P
+|7|CIV|CONSTRUCCIONES 2|A|TEO|ING SILVIO MEZA|||18:00|21:50|C4|
+||GYA|CIENCIA AMBIENTAL|A|PRAC|ING MARIELA GALEANO|||18:00|19:50|R1|p
+64|7º|CIV|SANEAMIENTO AMBIENTAL|A|TEO|ING VERONICA BLANCO|||18:00|19:50|E4|P
+65|9º|CIV|PROGRAMACIÓN DE CONTROL DE OBRAS|B|TEO|ING. ROBERTO NAGGY|||18:00|19:50|S3|P
+66|OPT|CIV|TRATAMIENTO DE AGUAS|A|TEO|DR. OSVALDO FRUTOS|||18:00|19:50|S1|P
+67|5º|IND|TECNOLOGIA MECANICA|A|TEO|ING. HENRY STANLEY|POR HOY R7||18:00|19:50|F4|
+68|7º|ELE|SISTEMAS DE CONTROL AUTOMATICO|A|PRAC|ING DAVID CABALLERO|||18:00|19:50|R4|
+69|7º I CiC|ECA|MACHINE LEARNING|A|PRAC||||18:00|19:50|CTC|
+70|7º|ECA|ELECTRÓNICA 3|A|PRAC||||18:00|19:50|CTC|
+71|9º|ECA|SISTEMAS DE TELEVISIÓN|A|TEO||||18:00|19:50|CTC|
+72|5º|GYA|GEODESIA GRAVIMETRICA|A|PRAC|ING. GUILLERMO SILVEIRA|||18:00|19:50|Q3|
+73|9°|MEC|PLASTICOS|A|PRAC|AUX VIVIAN GONZALEZ|||18:00|19:50|Q4|
+74|OPT|MEC|INTRODUCCION A LA INGENIERIA NAVAL|A|PRAC|ING. JORGE NEIRA|||18:00|19:50|Q2|
+75|ECA|COMPLE|SEGURIDAD EN EL TRABAJO|D|TEO||||18:00|19:50|-|
+76||COMPLE|SEGURIDAD EN EL TRABAJO|A|TEO|ING.VICTOR VILLASBOA|||18:00|20:50|F3|
+77||COMPLE|SEGURIDAD EN EL TRABAJO E HIGIENE INDUSTRIAL|A|TEO||||18:00|20:50||
+78|OPT|IND|LEAN PRODUCTION|A|T|ING FABRICIO RECALDE|EN D1 X HOY||18:00|21:50|F5|
+79|5º|CIV|GEOTECNIA|A|PRAC|ING. CRISTHIAN DELVALLE|||19:00|20:50|G1|
+80|5º|CIV|GEOTECNIA|B|PRAC|ING ALEJANDRO QUIÑONES|||19:00|20:50|G2|
+81|5º|ELE|CIRCUITOS ELÉCTRICOS|A|PRAC|ING JUAN ENCINA|||19:00|20:50|G4|
+82|7°|GYA|METEOROLOGIA Y CLIMATOLOGIA|A|PRAC|ING CAMILA FERREIRA|||19:00|20:50|GMT|
+83|9°|GYA|GESTION Y CONSERVACION DE RECURSOS NATURALES|A|PRAC||||19:00|20:50||
+84|7º|CIV|SANEAMIENTO AMBIENTAL|A|PRAC|ING. VICTOR ORTELLADO|||20:00|21:50|E4|
+85|9º|CIV|PROGRAMACIÓN DE CONTROL DE OBRAS|A|TEO|ING.ALDO JAHARI|||20:00|21:50|S3|
+86|OPT|CIV|TRATAMIENTO DE AGUAS|A|PRAC|ING JORGE PEREIRA|||20:00|21:50|S1|
+87|5º|IND|TERMODINAMICA|A|PRAC|ING GUILLERMO GOMEZ|POR HOY E3||20:00|21:50|G3|
+88|9º|ELE|ECONOMÍA Y EVALUACIÓN DE PROYECTOS|A|TEO|ING. DERLYS SANCHEZ|||20:00|21:50|G5|`;
+
+/* ============ Estado ============ */
+const $ = s => document.querySelector(s);
+const params = new URLSearchParams(location.search);
+const DEMO_MODE = params.has('demo');
+const store = {
+  get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+};
+const state = {
+  date: null, view: 'mis', q: '', car: store.get('fiuna-car','Todas'),
+  hideDone: true, favs: new Set(store.get('fiuna-favs',[])),
+  cache: {}, loading: false, lastFetch: null
+};
+const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const sameDay = (a,b) => keyOf(a)===keyOf(b);
+const nowMin = () => { const n=new Date(); return n.getHours()*60+n.getMinutes(); };
+const isToday = () => sameDay(state.date, new Date());
+
+function weekDays(){
+  const t=new Date(); t.setHours(0,0,0,0);
+  const base=new Date(t);
+  if(t.getDay()===0) base.setDate(t.getDate()+1); // domingo: mostrar la semana que viene
+  const mon=new Date(base); mon.setDate(base.getDate()-((base.getDay()+6)%7));
+  return Array.from({length:6},(_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d});
+}
+
+/* ============ Lectura de la planilla ============ */
+async function fetchGviz(name){
+  const url=`https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:csv&headers=0&sheet=${encodeURIComponent(name)}&_=${Date.now()}`;
+  const r=await fetch(url,{cache:'no-store'});
+  if(!r.ok) throw new Error('http '+r.status);
+  const t=await r.text();
+  if(/^\s*</.test(t)) throw new Error('no-csv');
+  return parseCSV(t);
+}
+
+async function loadViaApi(date){
+  const base=`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}`;
+  const meta=await (await fetch(`${base}?key=${CONFIG.API_KEY}&fields=sheets.properties.title`)).json();
+  if(meta.error) throw new Error(meta.error.message);
+  const d=date.getDate(), m=date.getMonth()+1;
+  const title=(meta.sheets||[]).map(s=>s.properties.title).find(t=>{
+    const x=t.match(/(\d{1,2})\/(\d{1,2})/); return x && +x[1]===d && +x[2]===m;
+  });
+  if(!title) return {missing:true};
+  const v=await (await fetch(`${base}/values/${encodeURIComponent(`'${title}'!A1:Z300`)}?key=${CONFIG.API_KEY}`)).json();
+  const parsed=parseRows(v.values||[]);
+  return {...parsed, sheet:title};
+}
+
+async function loadViaGviz(date){
+  const d=date.getDate(), m=date.getMonth()+1;
+  const known=store.get('fiuna-sheets',{})[keyOf(date)];
+  const cands=sheetNameCandidates(date); if(known) cands.unshift(known);
+  for(let i=0;i<cands.length;i+=4){
+    const batch=cands.slice(i,i+4);
+    const res=await Promise.allSettled(batch.map(fetchGviz));
+    for(let j=0;j<res.length;j++){
+      if(res[j].status!=='fulfilled') continue;
+      const parsed=parseRows(res[j].value);
+      if(parsed.fecha && parsed.fecha.d===d && parsed.fecha.m===m){
+        const map=store.get('fiuna-sheets',{}); map[keyOf(date)]=batch[j]; store.set('fiuna-sheets',map);
+        return {...parsed, sheet:batch[j]};
+      }
+    }
+    if(res.every(r=>r.status==='rejected') && i===0) throw new Error('network');
+  }
+  return {missing:true};
+}
+
+async function load(date, silent){
+  const k=keyOf(date);
+  if(!silent){state.loading=true; render();}
+  $('#refresh').setAttribute('aria-busy','true');
+  try{
+    let res;
+    if(DEMO_MODE) res= keyOf(date)!=='2026-10-05' ? {missing:true} : {...parseRows(DEMO.split('\n').map(l=>l.split('|'))), sheet:'Demo lunes 5/10/2026', demo:true};
+    else if(CONFIG.API_KEY) res=await loadViaApi(date);
+    else res=await loadViaGviz(date);
+    state.cache[k]={...res, at:new Date()};
+  }catch(e){
+    if(!state.cache[k] || !state.cache[k].classes) state.cache[k]={error:String(e.message||e), at:new Date()};
+    else state.cache[k].staleError=true;
+  }
+  state.loading=false; $('#refresh').removeAttribute('aria-busy');
+  render();
+}
+
+/* ============ Render ============ */
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const title = s => esc(cap(String(s).toLowerCase()));
+const person = s => esc(String(s).toLowerCase().replace(/(^|[\s.])([a-záéíóúñ])/g,(m,a,b)=>a+b.toUpperCase()).replace(/^(Ing|Lic|Dr|Dra|Aux)\b\.?\s*/,'$1. '));
+const starSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+
+function timeState(c){
+  if(!isToday()) return 'future';
+  const n=nowMin(); return n<c.ini?'future':n<=c.fin?'live':'done';
+}
+
+function statusHtml(c){
+  const s=classStatus(c, nowMin(), isToday());
+  let h=`<span class="st ${s.k}"><i></i>${esc(s.t)}</span>`;
+  if(s.link) h+=`<span class="note"><a href="${CONFIG.DTIC_URL}" target="_blank" rel="noopener">Ver distribución DTICs</a></span>`;
+  if(c.obs) h+=`<span class="note">${esc(c.obs)}</span>`;
+  return h;
+}
+
+function roomHtml(c){
+  const code=c.moved||c.aula||'Sin aula';
+  const small=code.length>4?' small':'';
+  if(c.moved) return `<div class="room moved${small}">${esc(code)}${c.aula?`<s>${esc(c.aula)}</s>`:''}</div>`;
+  if(!c.aula) return `<div class="room small" style="color:var(--ink-3)">Sin aula</div>`;
+  return `<div class="room${small}">${esc(code)}</div>`;
+}
+
+function rowHtml(c){
+  const ts=timeState(c), fav=state.favs.has(c.id);
+  const meta=[`<span class="t">${fmtMin(c.ini)} a ${fmtMin(c.fin)}</span>`, esc(c.car||''), c.sem?esc(c.sem):'', c.secc?`secc. ${esc(c.secc)}`:'', esc(c.tipo)].filter(Boolean).join(', ');
+  return `<li class="cls ${ts==='live'?'live':''} ${ts==='done'?'done':''}">
+    ${roomHtml(c)}
+    <div><p class="subj">${title(c.asig)}</p>
+      <p class="meta">${meta}${c.doc?`<br>${person(c.doc)}`:''}</p>
+      ${statusHtml(c)}</div>
+    <button class="star" data-fav="${esc(c.id)}" aria-pressed="${fav}" aria-label="${fav?'Quitar de mis clases':'Agregar a mis clases'}">${starSvg}</button>
+  </li>`;
+}
+
+function plateHtml(c){
+  const ts=timeState(c), s=classStatus(c, nowMin(), isToday());
+  const code=c.moved||c.aula||'Sin aula';
+  const when = ts==='live' ? `En curso, termina ${fmtMin(c.fin)}` : isToday() ? `Tu próxima clase, a las ${fmtMin(c.ini)}` : `Primera clase del día, a las ${fmtMin(c.ini)}`;
+  return `<section class="plate ${ts==='live'?'live':''}" aria-label="Tu próxima clase">
+    <p class="when">${when}</p>
+    <div class="code ${code.length>4?'long':''}">${esc(code)}</div>
+    ${c.moved && c.aula ? `<p class="was">Hoy cambió de aula, normalmente es ${esc(c.aula)}</p>`:''}
+    <p class="subj">${title(c.asig)}</p>
+    <p class="meta">${fmtMin(c.ini)} a ${fmtMin(c.fin)}${c.doc?`, ${person(c.doc)}`:''}</p>
+    <span class="st ${s.k}"><i></i>${esc(s.t)}</span>
+  </section>`;
+}
+
+function viewMis(classes){
+  let h='';
+  const mine=classes.filter(c=>state.favs.has(c.id));
+  const q=norm(state.q);
+  if(mine.length){
+    const upcoming=mine.filter(c=>timeState(c)!=='done');
+    const hero=upcoming.find(c=>timeState(c)==='live')||upcoming[0];
+    if(hero) h+=plateHtml(hero);
+    else h+=`<div class="notice">Ya terminaron tus clases de hoy.</div>`;
+    const rest=mine.filter(c=>c!==hero);
+    if(rest.length) h+=`<h2 class="sec">${hero?'También hoy':'Tus clases de hoy'}</h2><ul class="list">${rest.map(rowHtml).join('')}</ul>`;
+  }
+  h+=`<h2 class="sec">${mine.length?'Agregar otra materia':'Marcá tus materias'}</h2>`;
+  if(!mine.length) h+=`<p class="hint">Buscá tu materia y tocá la estrella. La próxima vez vas a ver directo tu aula y si llegó el profesor.</p>`;
+  h+=`<div class="search"><label class="sr" for="q">Buscar</label><input id="q" type="search" placeholder="Cálculo, Ing. Pintos o R7" value="${esc(state.q)}" autocomplete="off"></div>`;
+  if(q){
+    const found=classes.filter(c=>norm([c.asig,c.doc,c.aula,c.moved,c.car,c.reem].join(' ')).includes(q));
+    h+= found.length ? `<ul class="list">${found.map(rowHtml).join('')}</ul>` : `<div class="empty"><b>No aparece "${esc(state.q)}" este día</b>Probá con otra palabra de la materia, el apellido del docente o el aula.</div>`;
+  }
+  return h;
+}
+
+function viewHorario(classes){
+  const cars=['Todas',...[...new Set(classes.flatMap(c=>c.carreras))].sort()];
+  if(!cars.includes(state.car)) state.car='Todas';
+  let list=classes.filter(c=>state.car==='Todas'||c.carreras.includes(state.car));
+  let h=`<div class="chips" role="group" aria-label="Carrera">${cars.map(c=>`<button data-car="${esc(c)}" aria-pressed="${c===state.car}">${esc(c)}</button>`).join('')}</div>`;
+  if(isToday()) h+=`<label class="toggle"><input type="checkbox" id="hide" ${state.hideDone?'checked':''}> Ocultar las que ya terminaron</label>`;
+  if(isToday() && state.hideDone) list=list.filter(c=>timeState(c)!=='done');
+  if(!list.length) return h+`<div class="empty"><b>No quedan clases${state.car!=='Todas'?' de '+esc(state.car):''}</b>${isToday()?'Desmarcá "ocultar" para ver las de más temprano.':'Elegí otra carrera o día.'}</div>`;
+  const groups=new Map(); list.forEach(c=>{if(!groups.has(c.ini))groups.set(c.ini,[]);groups.get(c.ini).push(c)});
+  for(const [ini,cs] of groups){
+    const live=cs.some(c=>timeState(c)==='live'), past=cs.every(c=>timeState(c)==='done');
+    h+=`<section class="block ${past?'past':''}"><h3><b>${fmtMin(ini)}</b><span>${cs.length} ${cs.length===1?'clase':'clases'}</span>${live?'<em>En curso</em>':''}</h3><ul class="list">${cs.map(rowHtml).join('')}</ul></section>`;
+  }
+  return h;
+}
+
+function avisos(classes){
+  return {
+    aus: classes.filter(c=>c.asis==='A'),
+    mov: classes.filter(c=>c.moved),
+    rem: classes.filter(c=>c.reem || c.asis==='R'),
+    sin: classes.filter(c=>!c.aula && !c.moved),
+    aa: classes.filter(c=>c.asis==='AA')
+  };
+}
+function viewAvisos(classes){
+  const a=avisos(classes);
+  const sec=(t,hint,arr)=>arr.length?`<h2 class="sec">${t}</h2><p class="hint">${hint}</p><ul class="list">${arr.map(rowHtml).join('')}</ul>`:'';
+  const h=sec('Docente ausente','Registrado como ausente por bedelía.',a.aus)
+    +sec('Cambio de aula','Hoy la clase es en otra aula. Se muestra la nueva y, tachada, la habitual.',a.mov)
+    +sec('Con reemplazo','Da la clase otra persona.',a.rem)
+    +sec('Marcadas como AA','La planilla usa este código pero no lo explica en la leyenda.',a.aa)
+    +sec('Sin aula asignada','Consultá en bedelía antes de ir.',a.sin);
+  return h || `<div class="empty"><b>Sin novedades este día</b>No hay ausencias, cambios de aula ni reemplazos cargados.</div>`;
+}
+
+function render(){
+  // semana
+  const today=new Date();
+  $('#week').innerHTML=weekDays().map(d=>`<button data-d="${keyOf(d)}" aria-pressed="${sameDay(d,state.date)}" class="${sameDay(d,today)?'today':''}"><small>${DAY_SHORT[d.getDay()]}</small><b>${d.getDate()}</b></button>`).join('');
+  document.querySelectorAll('nav.views button').forEach(b=>b.setAttribute('aria-selected', b.dataset.v===state.view));
+
+  const entry=state.cache[keyOf(state.date)];
+  const dayLabel=`${cap(DAY_NAMES[state.date.getDay()])} ${state.date.getDate()}/${state.date.getMonth()+1}`;
+  $('#sub').textContent = entry && entry.at ? `${dayLabel}, actualizado ${entry.at.getHours()}:${pad(entry.at.getMinutes())}` : dayLabel;
+
+  const main=$('#main'), cnt=$('#avcount');
+  if(state.loading && !(entry && entry.classes)){
+    main.innerHTML='<div class="skeleton" style="width:60%"></div><div class="skeleton"></div><div class="skeleton" style="width:80%"></div>';
+    cnt.hidden=true; return;
+  }
+  if(!entry){ main.innerHTML=''; return; }
+  if(entry.error){
+    main.innerHTML=`<div class="notice bad"><b>No se pudo leer la planilla.</b> Revisá tu conexión y tocá Actualizar. Si sigue igual, <a href="https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/edit" target="_blank" rel="noopener">abrí la planilla original</a>.</div>`;
+    cnt.hidden=true; return;
+  }
+  if(entry.missing){
+    main.innerHTML=`<div class="notice warn"><b>La planilla de ${esc(dayLabel)} todavía no está publicada.</b> Dirección Académica suele cargarla el mismo día o la víspera. Se vuelve a revisar sola cada 2 minutos.</div>`;
+    cnt.hidden=true; return;
+  }
+  const classes=entry.classes;
+  const a=avisos(classes), n=a.aus.length+a.mov.length;
+  cnt.hidden=!n; cnt.textContent=n;
+
+  let pre='';
+  if(entry.demo) pre+=`<div class="notice">Modo demo con los datos del lunes 5/10/2026.</div>`;
+  if(entry.staleError) pre+=`<div class="notice warn">No se pudo actualizar. Estás viendo los datos de las ${entry.at.getHours()}:${pad(entry.at.getMinutes())}.</div>`;
+
+  main.innerHTML = pre + (state.view==='mis'?viewMis(classes):state.view==='horario'?viewHorario(classes):viewAvisos(classes));
+  const pc=document.querySelector('.chips [aria-pressed="true"]'); if(pc) pc.scrollIntoView({block:'nearest',inline:'center'});
+  const qi=$('#q'); if(qi && document.activeElement?.id!=='q' && state._focusQ){qi.focus();qi.setSelectionRange(qi.value.length,qi.value.length)}
+}
+
+/* ============ Eventos ============ */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.d){ const [y,m,d]=b.dataset.d.split('-').map(Number); state.date=new Date(y,m-1,d); if(!state.cache[b.dataset.d]) load(state.date); else render(); }
+  else if(b.dataset.v){ state.view=b.dataset.v; render(); window.scrollTo({top:0}); }
+  else if(b.dataset.car){ state.car=b.dataset.car; store.set('fiuna-car',state.car); render(); }
+  else if(b.dataset.fav){ const id=b.dataset.fav; state.favs.has(id)?state.favs.delete(id):state.favs.add(id); store.set('fiuna-favs',[...state.favs]); render(); }
+  else if(b.id==='refresh'){ load(state.date, true); }
+});
+document.addEventListener('input',e=>{
+  if(e.target.id==='q'){ state.q=e.target.value; state._focusQ=true; render(); }
+  if(e.target.id==='hide'){ state.hideDone=e.target.checked; render(); }
+});
+document.addEventListener('focusout',e=>{ if(e.target.id==='q') state._focusQ=false; });
+
+/* ============ Inicio y actualización automática ============ */
+(function init(){
+  const t=new Date(); t.setHours(0,0,0,0);
+  const days=weekDays();
+  state.date = days.find(d=>sameDay(d,t)) || days[0];
+  load(state.date);
+  setInterval(()=>{ if(document.visibilityState==='visible') load(state.date, true); }, CONFIG.REFRESH_MS);
+  setInterval(()=>{ if(document.visibilityState==='visible' && !state._focusQ) render(); }, 30000);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'){ const e=state.cache[keyOf(state.date)]; if(!e||Date.now()-e.at>60000) load(state.date,true); }});
+})();
+</script>
+</body>
+</html>
