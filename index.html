@@ -175,6 +175,14 @@ nav.views button{min-height:48px;transition:color .2s var(--ease),border-color .
 .share .hint{margin-top:6px}
 .share-url{width:100%;margin-top:6px;border:1px solid var(--rule);border-radius:8px;padding:8px 10px;background:var(--surface);font-size:14px}
 .install{margin-top:18px}
+.maker{display:flex;align-items:center;gap:10px;margin-top:28px;padding:10px 12px;border:1px solid var(--rule);border-radius:12px;text-decoration:none;color:var(--ink-2);transition:border-color .2s var(--ease),background-color .2s var(--ease)}
+.maker img{width:32px;height:32px;border-radius:50%;flex:none}
+.maker-txt{display:flex;flex-direction:column;line-height:1.2}
+.maker-txt small{font-size:12px;color:var(--ink-3)}
+.maker-txt b{font-size:14px;color:var(--ink)}
+.maker-cta{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;color:var(--ink-2)}
+.maker-cta svg{width:14px;height:14px}
+.maker:active{transform:scale(.98)}
 .install p{margin:6px 0 0}
 .notice .actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .act{min-height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--rule);background:var(--surface);font-weight:700}
@@ -207,6 +215,7 @@ nav.views button{padding-left:2px;padding-right:2px}
 @media (hover:hover){
   .coach-skip:hover{color:var(--ink)}
   .coach-back:hover{background:var(--hover)}
+  .maker:hover{border-color:var(--ink-3);background:var(--hover)}
   .share-btn:hover,.act:not(.primary):hover{background:var(--hover);border-color:var(--ink-3)}
   .refresh:hover,.chips button:not([aria-pressed="true"]):hover{background:var(--hover);border-color:var(--ink-3)}
   .week button:not([aria-pressed="true"]):hover,.star:hover,.search .clear:hover{background:var(--hover)}
@@ -265,6 +274,11 @@ nav.views button{padding-left:2px;padding-right:2px}
       <button class="share-btn" id="install" type="button"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19h14"/></svg>Instalar en el celular</button>
       <p id="install-msg">Queda como app en tu pantalla de inicio y abre aunque no haya señal.</p>
     </div>
+    <a class="maker" href="https://linktr.ee/maidan.ia" target="_blank" rel="noopener" aria-label="Powered by maidan.ia. Seguinos en sus redes">
+      <img src="icons/maidan.png" alt="" width="32" height="32" loading="lazy">
+      <span class="maker-txt"><small>Powered by</small><b>maidan.ia</b></span>
+      <span class="maker-cta">Seguinos<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M9 7h8v8"/></svg></span>
+    </a>
   </footer>
 </div>
 
