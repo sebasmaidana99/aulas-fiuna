@@ -12,6 +12,7 @@
 <meta name="theme-color" content="#11151B" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Mi clase">
+<script data-goatcounter="https://aulas-fiuna.goatcounter.com/count" data-goatcounter-settings='{"no_onload": true}' async src="https://gc.zgo.at/count.js" onload="window.dmcVisit&&dmcVisit()"></script>
 <meta name="description" content="En qué aula es tu clase hoy en la FIUNA, si el profesor ya vino y los cambios del día. Página no oficial.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -270,7 +271,7 @@ nav.views button{padding-left:2px;padding-right:2px}
   </div>
 
   <footer>
-    <p class="unofficial"><b>Página no oficial.</b> No pertenece a la FIUNA ni a Dirección Académica. Ante cualquier duda, vale lo que dice la planilla.</p>
+    <p class="unofficial"><b>Página no oficial.</b> No pertenece a la FIUNA ni a Dirección Académica. Ante cualquier duda, vale lo que dice la planilla. Cuenta visitas de forma anónima, sin cookies.</p>
     Los datos salen de la planilla pública de Dirección Académica y se actualizan solos cada 2 minutos mientras tenés la página abierta. La asistencia se carga durante el día: si una clase dice "aún no registrado", todavía no pasaron a controlar.<br>
     <a href="https://docs.google.com/spreadsheets/d/1kO0J6h6HiD9Pt84mjKedgPE0t37aWLnxecfHLic0rQw/edit" target="_blank" rel="noopener">Ver planilla original</a>
     · <button type="button" class="linkish" id="tour-open">Ver recorrido</button>
@@ -999,12 +1000,13 @@ document.addEventListener('click',e=>{
   else if(b.dataset.fav){
     const id=b.dataset.fav, on=!state.favs.has(id);
     on?state.favs.add(id):state.favs.delete(id); store.set('fiuna-favs',[...state.favs]);
+    if(on && state.favs.size===1) track('primera-materia-marcada');
     state._pop=on?id:null; render(); state._pop=null;
     $('#live').textContent=on?'Agregada a Mis clases':'Quitada de Mis clases';
   }
   else if(b.classList.contains('clear')){ const qi=$('#q'); qi.value=''; qi.focus(); onSearch(''); }
-  else if(b.id==='share'){ shareFavs(); }
-  else if(b.id==='inc-yes'){ state.incoming.forEach(id=>state.favs.add(id)); store.set('fiuna-favs',[...state.favs]); $('#live').textContent='Materias agregadas'; clearIncoming(); render(); }
+  else if(b.id==='share'){ shareFavs(); track('compartio-sus-clases'); }
+  else if(b.id==='inc-yes'){ track('agrego-clases-de-link'); state.incoming.forEach(id=>state.favs.add(id)); store.set('fiuna-favs',[...state.favs]); $('#live').textContent='Materias agregadas'; clearIncoming(); render(); }
   else if(b.id==='inc-no'){ clearIncoming(); render(); }
   else if(b.id==='install'){ installApp(); }
   else if(b.id==='refresh'){ load(state.date, true); }
@@ -1090,9 +1092,9 @@ function coachClose(){
   store.set('fiuna-tour-visto', true);
   state.view='mis'; state.q=''; render(); window.scrollTo({top:0, behavior:'auto'});
 }
-$('#coach-next').addEventListener('click',()=> coach.i===COACH.length-1 ? coachClose() : coachGo(coach.i+1));
+$('#coach-next').addEventListener('click',()=>{ if(coach.i===COACH.length-1){ track('recorrido-completo'); coachClose(); } else coachGo(coach.i+1); });
 $('#coach-back').addEventListener('click',()=> coachGo(coach.i-1));
-$('#coach-skip').addEventListener('click',coachClose);
+$('#coach-skip').addEventListener('click',()=>{ track(`recorrido-saltado-paso-${coach.i+1}`); coachClose(); });
 $('#tour-open').addEventListener('click',coachOpen);
 $('#coach').addEventListener('keydown',e=>{
   if(e.key==='Escape') coachClose();
@@ -1108,11 +1110,27 @@ $('#coach').addEventListener('click',e=>{ if(!e.target.closest('#coach-tip')) $(
 addEventListener('resize',()=>coach.on&&coachPlace());
 addEventListener('scroll',()=>{ if(coach.on){ clearTimeout(coach.t); coach.t=setTimeout(coachPlace,60);} },{passive:true});
 
+/* ============ Métricas anónimas (GoatCounter, sin cookies) ============ */
+// Solo cuenta visitas y acciones, nunca qué materias marcó cada uno.
+const LOCAL = /^(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(location.hostname);
+function track(event){
+  if(DEMO_MODE || LOCAL) return;
+  try{ window.goatcounter?.count?.({path:event, title:event, event:true}); }catch{}
+}
+window.dmcVisit = () => {
+  if(DEMO_MODE || LOCAL) return;
+  try{ window.goatcounter.count({path:location.pathname, title:'Dónde es mi clase'}); }catch{}
+  if(matchMedia('(display-mode: standalone)').matches || navigator.standalone) track('abierta-como-app');
+  if(params.has('mis')) track('llego-por-link-compartido');
+};
+// Si el script de GoatCounter cargó antes que esto, contar ahora.
+if(typeof window.goatcounter?.count==='function') dmcVisit();
+
 /* ============ App instalable ============ */
 let installEvt=null;
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); installEvt=e; $('#install-box').hidden=false; });
-window.addEventListener('appinstalled',()=>{ $('#install-box').hidden=true; });
+window.addEventListener('appinstalled',()=>{ $('#install-box').hidden=true; track('app-instalada'); });
 async function installApp(){
   if(installEvt){ installEvt.prompt(); await installEvt.userChoice; installEvt=null; $('#install-box').hidden=true; }
 }
