@@ -342,7 +342,7 @@ nav.views button{padding-left:2px;padding-right:2px}
             <div class="t-pills"><span class="st neutral p1"><i></i>Aún no registrado</span><span class="st ok p2"><i></i>Docente presente</span><span class="st bad p3"><i></i>Docente ausente</span></div>
           </div></div>
           <h2>¿Vino el profe?</h2>
-          <p>Bedelía carga la asistencia durante el día. Vas a ver si el docente llegó, si faltó o si viene un reemplazo.</p>
+          <p>Sala de Profesores carga la asistencia durante el día. Vas a ver si el docente llegó, si faltó o si viene un reemplazo.</p>
         </section>
         <section class="tour-step" aria-hidden="true">
           <div class="tour-art"><div class="t-tabs">
@@ -1018,11 +1018,11 @@ function viewAvisos(classes){
   const a=avisos(byCar(classes));
   const sec=(t,hint,arr)=>arr.length?`<h2 class="sec">${t}</h2><p class="hint">${hint}</p><ul class="list">${arr.map(rowHtml).join('')}</ul>`:'';
   const body=sec('No hay clase hoy','Según la planilla, no se habilitó o pasó a otro día.',a.off)
-    +sec('Docente ausente','Registrado como ausente por bedelía.',a.aus)
+    +sec('Docente ausente','Sala de Profesores lo registró como ausente.',a.aus)
     +sec('Cambio de aula','Hoy la clase es en otra aula. Se muestra la nueva y, tachada, la habitual.',a.mov)
     +sec('Con reemplazo','Da la clase otra persona.',a.rem)
     +sec('Marcadas como AA','La planilla usa este código pero no lo explica en la leyenda.',a.aa)
-    +sec('Sin aula asignada','Consultá en bedelía antes de ir.',a.sin);
+    +sec('Sin aula asignada','Consultá en Sala de Profesores antes de ir.',a.sin);
   return h + (body || `<div class="empty"><b>Sin novedades${state.car!=='Todas'?' de '+esc(state.car):''} este día</b>No hay ausencias, cambios de aula ni reemplazos cargados.</div>`);
 }
 

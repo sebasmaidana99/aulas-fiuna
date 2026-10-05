@@ -1,5 +1,5 @@
 // Dónde es mi clase: abre sin señal. La planilla no se cachea acá; la página guarda sus datos en el navegador.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
