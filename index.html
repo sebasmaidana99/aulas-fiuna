@@ -126,6 +126,51 @@ footer a{color:var(--ink-2)}
 @keyframes pulse{50%{opacity:.45}}
 @media (prefers-reduced-motion:reduce){.skeleton{animation:none}}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ===== Controles: estados, toque y feedback ===== */
+:root{--ease:cubic-bezier(.2,.7,.2,1);--hover:color-mix(in srgb,var(--ink) 6%,transparent)}
+button,.toggle,input[type=search]{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+button{transition:background-color .2s var(--ease),color .2s var(--ease),border-color .2s var(--ease),transform .12s var(--ease),opacity .2s}
+button:active{transform:scale(.96)}
+.meta .t,.block h3 b,.plate .meta,.week button b{font-variant-numeric:tabular-nums}
+
+.refresh{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px 0 12px;font-weight:700;color:var(--ink)}
+.refresh svg{width:18px;height:18px;flex:none}
+.refresh[aria-busy="true"]{opacity:1;color:var(--ink-2)}
+.refresh[aria-busy="true"] svg{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.week button{min-height:52px}
+.week button.nodata:not([aria-pressed="true"]) b{color:var(--ink-3);font-weight:700}
+.week button.nodata:not([aria-pressed="true"]) small{color:var(--ink-3)}
+
+nav.views button{min-height:48px;transition:color .2s var(--ease),border-color .25s var(--ease)}
+
+.chips button{min-height:40px;padding:0 14px}
+
+.star{width:44px;height:44px;margin:-4px -6px 0 0}
+.star.pop svg{animation:pop .35s var(--ease)}
+@keyframes pop{40%{transform:scale(1.35)}100%{transform:scale(1)}}
+
+.search input{min-height:48px;padding-right:48px;transition:border-color .2s var(--ease),box-shadow .2s var(--ease)}
+.search input:focus{outline:none;border-color:var(--signal);box-shadow:0 0 0 3px var(--signal-bg)}
+.search input::-webkit-search-cancel-button{display:none}
+.search .clear{position:absolute;right:4px;top:50%;margin-top:-20px;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:var(--ink-2);display:grid;place-items:center}
+.search .clear:active{transform:scale(.9)}
+.search .clear svg{width:18px;height:18px}
+
+.toggle{min-height:44px;cursor:pointer;user-select:none}
+
+@media (hover:hover){
+  .refresh:hover,.chips button:not([aria-pressed="true"]):hover{background:var(--hover);border-color:var(--ink-3)}
+  .week button:not([aria-pressed="true"]):hover,.star:hover,.search .clear:hover{background:var(--hover)}
+  nav.views button:not([aria-selected="true"]):hover{color:var(--ink-2)}
+}
+@media (prefers-reduced-motion:reduce){
+  button,.search input{transition:none}
+  button:active{transform:none}
+  .refresh[aria-busy="true"] svg,.star.pop svg{animation:none}
+}
 </style>
 </head>
 <body>
@@ -135,7 +180,7 @@ footer a{color:var(--ink-2)}
       <h1>Dónde es<br>mi clase</h1>
       <p id="sub">Facultad de Ingeniería UNA</p>
     </div>
-    <button class="refresh" id="refresh" type="button">Actualizar</button>
+    <button class="refresh" id="refresh" type="button"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg><span id="refresh-label">Actualizar</span></button>
   </header>
 
   <div class="week" id="week" role="group" aria-label="Día"></div>
@@ -146,7 +191,8 @@ footer a{color:var(--ink-2)}
     <button role="tab" data-v="avisos" aria-selected="false">Avisos<span class="count" id="avcount" hidden></span></button>
   </nav>
 
-  <main id="main" aria-live="polite"></main>
+  <main id="main"></main>
+  <p class="sr" id="live" aria-live="polite"></p>
 
   <footer>
     Los datos salen de la planilla pública de Dirección Académica y se actualizan solos cada 2 minutos mientras tenés la página abierta. La asistencia se carga durante el día: si una clase dice "aún no registrado", todavía no pasaron a controlar.<br>
@@ -493,7 +539,7 @@ async function fetchTabs(force){
   if(!force && tabsCache && Date.now()-tabsCache.at<10*60000) return tabsCache.tabs;
   const tabs=parseTabs(await fetchText(`${SHEET_BASE}/htmlview`));
   if(!tabs.length) throw new Error('no-tabs');
-  tabsCache={tabs, at:Date.now()};
+  tabsCache={tabs, at:Date.now()}; state.tabs=tabs;
   return tabs;
 }
 
@@ -545,7 +591,7 @@ async function loadViaGviz(date){
 async function load(date, silent){
   const k=keyOf(date);
   if(!silent){state.loading=true; render();}
-  $('#refresh').setAttribute('aria-busy','true');
+  $('#refresh').setAttribute('aria-busy','true'); $('#refresh-label').textContent='Actualizando';
   try{
     let res;
     if(DEMO_MODE) res= keyOf(date)!=='2026-10-05' ? {missing:true} : {...parseRows(DEMO.split('\n').map(l=>l.split('|'))), sheet:'Demo lunes 5/10/2026', demo:true};
@@ -560,7 +606,7 @@ async function load(date, silent){
     if(!state.cache[k] || !state.cache[k].classes) state.cache[k]={error:String(e.message||e), at:new Date()};
     else state.cache[k].staleError=true;
   }
-  state.loading=false; $('#refresh').removeAttribute('aria-busy');
+  state.loading=false; $('#refresh').removeAttribute('aria-busy'); $('#refresh-label').textContent='Actualizar';
   render();
 }
 
@@ -599,7 +645,7 @@ function rowHtml(c){
     <div><p class="subj">${title(c.asig)}</p>
       <p class="meta">${meta}${c.doc?`<br>${person(c.doc)}`:''}</p>
       ${statusHtml(c)}</div>
-    <button class="star" data-fav="${esc(c.id)}" aria-pressed="${fav}" aria-label="${fav?'Quitar de mis clases':'Agregar a mis clases'}">${starSvg}</button>
+    <button class="star${state._pop===c.id?' pop':''}" data-fav="${esc(c.id)}" aria-pressed="${fav}" aria-label="${fav?'Quitar de mis clases':'Agregar a mis clases'}">${starSvg}</button>
   </li>`;
 }
 
@@ -633,7 +679,7 @@ function viewMis(classes){
   }
   h+=`<h2 class="sec">${mine.length?'Agregar otra materia':'Marcá tus materias'}</h2>`;
   if(!mine.length) h+=`<p class="hint">Buscá tu materia y tocá la estrella. La próxima vez vas a ver directo tu aula y si llegó el profesor.</p>`;
-  h+=`<div class="search"><label class="sr" for="q">Buscar</label><input id="q" type="search" placeholder="Cálculo, Ing. Pintos o R7" value="${esc(state.q)}" autocomplete="off"></div>`;
+  h+=`<div class="search"><label class="sr" for="q">Buscar</label><input id="q" type="search" placeholder="Cálculo, Ing. Pintos o R7" value="${esc(state.q)}" autocomplete="off" enterkeyhint="search">${state.q?`<button class="clear" type="button" aria-label="Borrar búsqueda"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`:''}</div>`;
   if(q){
     const found=classes.filter(c=>norm([c.asig,c.doc,c.aula,c.moved,c.car,c.reem].join(' ')).includes(q));
     h+= found.length ? `<ul class="list">${found.map(rowHtml).join('')}</ul>` : `<div class="empty"><b>No aparece "${esc(state.q)}" este día</b>Probá con otra palabra de la materia, el apellido del docente o el aula.</div>`;
@@ -682,7 +728,12 @@ function viewAvisos(classes){
 function render(){
   // semana
   const today=new Date();
-  $('#week').innerHTML=weekDays().map(d=>`<button data-d="${keyOf(d)}" aria-pressed="${sameDay(d,state.date)}" class="${sameDay(d,today)?'today':''}"><small>${DAY_SHORT[d.getDay()]}</small><b>${d.getDate()}</b></button>`).join('');
+  $('#week').innerHTML=weekDays().map(d=>{
+    const e=state.cache[keyOf(d)];
+    const nodata=(e&&e.missing) || (!DEMO_MODE && state.tabs && !e?.classes && !tabFor(state.tabs,d));
+    const cls=[sameDay(d,today)?'today':'', nodata?'nodata':''].join(' ').trim();
+    return `<button data-d="${keyOf(d)}" aria-pressed="${sameDay(d,state.date)}" class="${cls}" aria-label="${cap(DAY_NAMES[d.getDay()])} ${d.getDate()}${nodata?', sin planilla todavía':''}"><small>${DAY_SHORT[d.getDay()]}</small><b>${d.getDate()}</b></button>`;
+  }).join('');
   document.querySelectorAll('nav.views button').forEach(b=>b.setAttribute('aria-selected', b.dataset.v===state.view));
 
   const entry=state.cache[keyOf(state.date)];
@@ -723,7 +774,13 @@ document.addEventListener('click',e=>{
   if(b.dataset.d){ const [y,m,d]=b.dataset.d.split('-').map(Number); state.date=new Date(y,m-1,d); const e=state.cache[b.dataset.d]; if(!e) load(state.date); else { render(); if(Date.now()-e.at>60000) load(state.date,true); } }
   else if(b.dataset.v){ state.view=b.dataset.v; render(); window.scrollTo({top:0}); }
   else if(b.dataset.car){ state.car=b.dataset.car; store.set('fiuna-car',state.car); render(); }
-  else if(b.dataset.fav){ const id=b.dataset.fav; state.favs.has(id)?state.favs.delete(id):state.favs.add(id); store.set('fiuna-favs',[...state.favs]); render(); }
+  else if(b.dataset.fav){
+    const id=b.dataset.fav, on=!state.favs.has(id);
+    on?state.favs.add(id):state.favs.delete(id); store.set('fiuna-favs',[...state.favs]);
+    state._pop=on?id:null; render(); state._pop=null;
+    $('#live').textContent=on?'Agregada a Mis clases':'Quitada de Mis clases';
+  }
+  else if(b.classList.contains('clear')){ state.q=''; state._focusQ=true; render(); }
   else if(b.id==='refresh'){ load(state.date, true); }
 });
 document.addEventListener('input',e=>{
