@@ -4,7 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dónde es mi clase · FIUNA</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚪</text></svg>">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#F3F5F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#11151B" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mi clase">
+<meta name="description" content="En qué aula es tu clase hoy en la FIUNA, si el profesor ya vino y los cambios del día.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@700;800&display=swap" rel="stylesheet">
@@ -27,6 +34,7 @@
   --signal:#86A6FF;--signal-bg:#172647;--ok:#5BD08F;--ok-bg:#12301F;--bad:#FF7B72;--bad-bg:#3A1715;
   --warn:#F2B84B;--warn-bg:#3A2C0E;--plate:#E9EDF2;--plate-ink:#11151B;}
 *,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
 button,input{font:inherit;color:inherit}
@@ -161,7 +169,22 @@ nav.views button{min-height:48px;transition:color .2s var(--ease),border-color .
 
 .toggle{min-height:44px;cursor:pointer;user-select:none}
 
+.share{margin-top:28px}
+.share-btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px 0 14px;border:1px solid var(--rule);border-radius:10px;background:var(--surface);font-weight:700;color:var(--ink)}
+.share-btn svg{width:18px;height:18px;flex:none}
+.share .hint{margin-top:6px}
+.share-url{width:100%;margin-top:6px;border:1px solid var(--rule);border-radius:8px;padding:8px 10px;background:var(--surface);font-size:14px}
+.install{margin-top:18px}
+.install p{margin:6px 0 0}
+.notice .actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.act{min-height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--rule);background:var(--surface);font-weight:700}
+.act.primary{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.block.wk h3{border-bottom-color:var(--rule)}
+.block .hint{margin:10px 0 0}
+nav.views button{padding-left:2px;padding-right:2px}
+
 @media (hover:hover){
+  .share-btn:hover,.act:not(.primary):hover{background:var(--hover);border-color:var(--ink-3)}
   .refresh:hover,.chips button:not([aria-pressed="true"]):hover{background:var(--hover);border-color:var(--ink-3)}
   .week button:not([aria-pressed="true"]):hover,.star:hover,.search .clear:hover{background:var(--hover)}
   nav.views button:not([aria-selected="true"]):hover{color:var(--ink-2)}
@@ -187,6 +210,7 @@ nav.views button{min-height:48px;transition:color .2s var(--ease),border-color .
 
   <nav class="views" role="tablist">
     <button role="tab" data-v="mis" aria-selected="true">Mis clases</button>
+    <button role="tab" data-v="semana" aria-selected="false">Semana</button>
     <button role="tab" data-v="horario" aria-selected="false">Por horario</button>
     <button role="tab" data-v="avisos" aria-selected="false">Avisos<span class="count" id="avcount" hidden></span></button>
   </nav>
@@ -197,6 +221,10 @@ nav.views button{min-height:48px;transition:color .2s var(--ease),border-color .
   <footer>
     Los datos salen de la planilla pública de Dirección Académica y se actualizan solos cada 2 minutos mientras tenés la página abierta. La asistencia se carga durante el día: si una clase dice "aún no registrado", todavía no pasaron a controlar.<br>
     <a href="https://docs.google.com/spreadsheets/d/1kO0J6h6HiD9Pt84mjKedgPE0t37aWLnxecfHLic0rQw/edit" target="_blank" rel="noopener">Ver planilla original</a>
+    <div class="install" id="install-box" hidden>
+      <button class="share-btn" id="install" type="button"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19h14"/></svg>Instalar en el celular</button>
+      <p id="install-msg">Queda como app en tu pantalla de inicio y abre aunque no haya señal.</p>
+    </div>
   </footer>
 </div>
 
@@ -588,25 +616,46 @@ async function loadViaGviz(date){
   return {missing:true};
 }
 
-async function load(date, silent){
+async function fetchDay(date){
+  if(DEMO_MODE) return keyOf(date)!=='2026-10-05' ? {missing:true} : {...parseRows(DEMO.split('\n').map(l=>l.split('|'))), sheet:'Demo lunes 5/10/2026', demo:true};
+  if(CONFIG.API_KEY) return loadViaApi(date);
+  try{ return await loadViaHtmlview(date); }
+  catch(e){ console.warn('htmlview falló, se adivina el nombre por gviz', e); return loadViaGviz(date); }
+}
+
+// Trae un día y lo deja en la caché (memoria + navegador). No toca la pantalla.
+async function refreshDay(date){
   const k=keyOf(date);
-  if(!silent){state.loading=true; render();}
-  $('#refresh').setAttribute('aria-busy','true'); $('#refresh-label').textContent='Actualizando';
   try{
-    let res;
-    if(DEMO_MODE) res= keyOf(date)!=='2026-10-05' ? {missing:true} : {...parseRows(DEMO.split('\n').map(l=>l.split('|'))), sheet:'Demo lunes 5/10/2026', demo:true};
-    else if(CONFIG.API_KEY) res=await loadViaApi(date);
-    else{
-      try{ res=await loadViaHtmlview(date); }
-      catch(e){ console.warn('htmlview falló, se adivina el nombre por gviz', e); res=await loadViaGviz(date); }
-    }
-    state.cache[k]={...res, at:new Date()};
+    state.cache[k]={...await fetchDay(date), at:new Date()};
     if(!DEMO_MODE) saveDay(k, state.cache[k]);
   }catch(e){
     if(!state.cache[k] || !state.cache[k].classes) state.cache[k]={error:String(e.message||e), at:new Date()};
     else state.cache[k].staleError=true;
   }
-  state.loading=false; $('#refresh').removeAttribute('aria-busy'); $('#refresh-label').textContent='Actualizar';
+}
+
+function setBusy(on){
+  if(on) $('#refresh').setAttribute('aria-busy','true'); else $('#refresh').removeAttribute('aria-busy');
+  $('#refresh-label').textContent=on?'Actualizando':'Actualizar';
+}
+
+async function load(date, silent){
+  if(state.view==='semana') return loadWeek(true);
+  if(!silent){state.loading=true; render();}
+  setBusy(true);
+  await refreshDay(date);
+  state.loading=false; setBusy(false);
+  render();
+}
+
+// Vista Semana: trae los días de la semana que falten o tengan más de 5 minutos.
+async function loadWeek(force){
+  const days=weekDays().filter(d=>{const e=state.cache[keyOf(d)]; return force || !e || Date.now()-e.at>5*60000;});
+  if(!days.length) return;
+  setBusy(true);
+  await Promise.all(days.map(refreshDay));
+  setBusy(false);
   render();
 }
 
@@ -680,10 +729,45 @@ function viewMis(classes){
     if(rest.length) h+=`<h2 class="sec">${hero?'También hoy':'Tus clases de hoy'}</h2><ul class="list">${rest.map(rowHtml).join('')}</ul>`;
   }
   h+=`<h2 class="sec">${mine.length?'Agregar otra materia':'Marcá tus materias'}</h2>`;
+  if(!mine.length && state.favs.size) h+=`<p class="hint">Hoy no tenés clases marcadas. Mirá la pestaña Semana.</p>`;
   if(!mine.length) h+=`<p class="hint">Buscá tu materia y tocá la estrella. La próxima vez vas a ver directo tu aula y si llegó el profesor.</p>`;
   h+=`<div class="search"><label class="sr" for="q">Buscar</label><input id="q" type="search" placeholder="Cálculo, Ing. Pintos o R7" value="${esc(state.q)}" autocomplete="off" enterkeyhint="search"><button class="clear" type="button" aria-label="Borrar búsqueda" ${state.q?'':'hidden'}><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;
   h+=`<div id="results">${resultsHtml(classes)}</div>`;
-  return h;
+  return h+shareHtml();
+}
+
+// Link con tus materias para abrirlas en otro celular o compu. Sin cuentas: todo va en el link.
+const b64u = str => btoa(unescape(encodeURIComponent(str))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const unb64u = str => decodeURIComponent(escape(atob(str.replace(/-/g,'+').replace(/_/g,'/'))));
+const shareUrl = () => `${location.origin}${location.pathname}?mis=${b64u(JSON.stringify([...state.favs]))}`;
+function shareHtml(){
+  if(!state.favs.size) return '';
+  return `<div class="share"><button class="share-btn" id="share" type="button"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>Pasar mis clases a otro dispositivo</button><p class="hint" id="share-msg">Genera un link con tus ${state.favs.size} ${state.favs.size===1?'materia':'materias'}. Abrilo en el otro celular o compu.</p></div>`;
+}
+async function shareFavs(){
+  const url=shareUrl(), msg=$('#share-msg');
+  try{
+    if(navigator.share && matchMedia('(pointer:coarse)').matches){ await navigator.share({title:'Mis clases FIUNA', url}); return; }
+    await navigator.clipboard.writeText(url);
+    msg.textContent='Link copiado. Pegalo en el otro dispositivo (por ejemplo, mandátelo por WhatsApp).';
+  }catch(e){
+    if(e && e.name==='AbortError') return;
+    msg.innerHTML=`Copiá este link: <input class="share-url" readonly value="${esc(url)}" onfocus="this.select()">`;
+  }
+}
+// Al abrir un link compartido: preguntar antes de agregar.
+function incomingFavs(){
+  const raw=params.get('mis'); if(!raw) return null;
+  try{ const ids=JSON.parse(unb64u(raw)).map(migrateFav).filter(x=>typeof x==='string'&&x.includes('|')); return ids.filter(id=>!state.favs.has(id)); }
+  catch{ return null; }
+}
+function clearIncoming(){ state.incoming=null; params.delete('mis'); history.replaceState(null,'',location.pathname+(params.toString()?'?'+params:'')); }
+function incomingHtml(){
+  const ids=state.incoming; if(!ids) return '';
+  if(!ids.length){ clearIncoming(); return `<div class="notice">Ya tenías todas las materias de ese link.</div>`; }
+  const names=ids.map(id=>{const [a,s]=id.split('|'); return `${title(a)}${s?` (secc. ${esc(s)})`:''}`;});
+  return `<div class="notice incoming"><b>Agregar ${ids.length} ${ids.length===1?'materia':'materias'} a Mis clases</b><br>${names.join(', ')}.
+    <div class="actions"><button type="button" class="act primary" id="inc-yes">Agregar</button><button type="button" class="act" id="inc-no">Ahora no</button></div></div>`;
 }
 
 const SEARCH_MAX=40;
@@ -714,6 +798,41 @@ function chipsHtml(classes){
   return `<div class="chips" role="group" aria-label="Carrera">${cars.map(c=>`<button data-car="${esc(c)}" aria-pressed="${c===state.car}">${esc(c)}</button>`).join('')}</div>`;
 }
 const byCar = classes => classes.filter(c=>state.car==='Todas'||c.carreras.includes(state.car));
+
+// Tus clases de toda la semana, día por día.
+function viewSemana(){
+  if(!state.favs.size) return `<div class="empty"><b>Todavía no marcaste materias</b>En Mis clases buscá tu materia y tocá la estrella. Acá vas a ver tu semana completa.</div>`;
+  const today=new Date();
+  let h='', any=false;
+  for(const d of weekDays()){
+    const e=state.cache[keyOf(d)], isT=sameDay(d,today);
+    const label=`${cap(DAY_NAMES[d.getDay()])} ${d.getDate()}/${d.getMonth()+1}`;
+    let body;
+    if(!e) body=`<div class="skeleton" style="width:70%"></div>`;
+    else if(e.error && !e.classes) body=`<p class="hint">No se pudo leer este día.</p>`;
+    else if(e.missing) body=`<p class="hint">La planilla de este día todavía no está publicada.</p>`;
+    else{
+      const mine=uniq(e.classes.filter(c=>state.favs.has(c.id)));
+      any=any||mine.length>0;
+      body= mine.length ? `<ul class="list">${mine.map(c=>weekRowHtml(c,isT)).join('')}</ul>` : `<p class="hint">No tenés clases este día.</p>`;
+      if(e.unconfirmed) body=`<p class="hint">Puede que la planilla de este día no esté actualizada.</p>`+body;
+    }
+    h+=`<section class="block${isT?'':' wk'}"><h3><b>${esc(label)}</b>${isT?'<em>Hoy</em>':''}</h3>${body}</section>`;
+  }
+  return h;
+}
+function weekRowHtml(c, isT){
+  const s=classStatus(c, nowMin(), isT);
+  // Fuera de hoy solo interesa lo que cambia el plan: sin clase, ausente, otra aula o reemplazo.
+  const show = isT || c.off || c.moved || ['A','R'].includes(c.asis) || c.reem;
+  return `<li class="cls">
+    ${roomHtml(c)}
+    <div><p class="subj">${title(c.asig)}</p>
+      <p class="meta"><span class="t">${fmtMin(c.ini)} a ${fmtMin(c.fin)}</span>, ${esc(c.tipo)}${c.doc?`, ${person(c.doc)}`:''}</p>
+      ${show?`<span class="st ${s.k}"><i></i>${esc(s.t)}</span>`:''}</div>
+    <span></span>
+  </li>`;
+}
 
 function viewHorario(classes){
   let list=byCar(classes);
@@ -774,6 +893,12 @@ function render(){
   }).join('');
   document.querySelectorAll('nav.views button').forEach(b=>b.setAttribute('aria-selected', b.dataset.v===state.view));
 
+  if(state.view==='semana'){
+    $('#sub').textContent='Tu semana';
+    $('#main').innerHTML=viewSemana()+shareHtml();
+    return;
+  }
+
   const entry=state.cache[keyOf(state.date)];
   const dayLabel=`${cap(DAY_NAMES[state.date.getDay()])} ${state.date.getDate()}/${state.date.getMonth()+1}`;
   $('#sub').textContent = entry && entry.at ? `${dayLabel}, actualizado ${entry.at.getHours()}:${pad(entry.at.getMinutes())}` : dayLabel;
@@ -789,7 +914,7 @@ function render(){
     cnt.hidden=true; return;
   }
   if(entry.missing){
-    main.innerHTML=`<div class="notice warn"><b>La planilla de ${esc(dayLabel)} todavía no está publicada.</b> Dirección Académica suele cargarla el mismo día o la víspera. Se vuelve a revisar sola cada 2 minutos.</div>`;
+    main.innerHTML=incomingHtml()+`<div class="notice warn"><b>La planilla de ${esc(dayLabel)} todavía no está publicada.</b> Dirección Académica suele cargarla el mismo día o la víspera. Se vuelve a revisar sola cada 2 minutos.</div>`;
     cnt.hidden=true; return;
   }
   const classes=entry.classes;
@@ -797,6 +922,7 @@ function render(){
   cnt.hidden=!n; cnt.textContent=n; cnt.setAttribute('aria-label', `${n} ${n===1?'novedad':'novedades'} en tus clases`);
 
   let pre='';
+  pre+=incomingHtml();
   if(entry.demo) pre+=`<div class="notice">Modo demo con los datos del lunes 5/10/2026.</div>`;
   if(entry.unconfirmed) pre+=`<div class="notice warn">La pestaña de este día todavía no tiene la fecha cargada en su encabezado. Puede que la planilla no esté actualizada.</div>`;
   if(entry.staleError) pre+=`<div class="notice warn">No se pudo actualizar. Estás viendo los datos de las ${entry.at.getHours()}:${pad(entry.at.getMinutes())}.</div>`;
@@ -809,8 +935,8 @@ function render(){
 /* ============ Eventos ============ */
 document.addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
-  if(b.dataset.d){ const [y,m,d]=b.dataset.d.split('-').map(Number); state.date=new Date(y,m-1,d); const e=state.cache[b.dataset.d]; if(!e) load(state.date); else { render(); if(Date.now()-e.at>60000) load(state.date,true); } }
-  else if(b.dataset.v){ state.view=b.dataset.v; render(); window.scrollTo({top:0}); }
+  if(b.dataset.d){ if(state.view==='semana') state.view='mis'; const [y,m,d]=b.dataset.d.split('-').map(Number); state.date=new Date(y,m-1,d); const e=state.cache[b.dataset.d]; if(!e) load(state.date); else { render(); if(Date.now()-e.at>60000) load(state.date,true); } }
+  else if(b.dataset.v){ state.view=b.dataset.v; render(); window.scrollTo({top:0}); if(state.view==='semana') loadWeek(); }
   else if(b.dataset.car){ state.car=b.dataset.car; store.set('fiuna-car',state.car); render(); }
   else if(b.dataset.fav){
     const id=b.dataset.fav, on=!state.favs.has(id);
@@ -819,6 +945,10 @@ document.addEventListener('click',e=>{
     $('#live').textContent=on?'Agregada a Mis clases':'Quitada de Mis clases';
   }
   else if(b.classList.contains('clear')){ const qi=$('#q'); qi.value=''; qi.focus(); onSearch(''); }
+  else if(b.id==='share'){ shareFavs(); }
+  else if(b.id==='inc-yes'){ state.incoming.forEach(id=>state.favs.add(id)); store.set('fiuna-favs',[...state.favs]); $('#live').textContent='Materias agregadas'; clearIncoming(); render(); }
+  else if(b.id==='inc-no'){ clearIncoming(); render(); }
+  else if(b.id==='install'){ installApp(); }
   else if(b.id==='refresh'){ load(state.date, true); }
 });
 document.addEventListener('input',e=>{
@@ -827,14 +957,30 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('focusout',e=>{ if(e.target.id==='q') state._focusQ=false; });
 
+/* ============ App instalable ============ */
+let installEvt=null;
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); installEvt=e; $('#install-box').hidden=false; });
+window.addEventListener('appinstalled',()=>{ $('#install-box').hidden=true; });
+async function installApp(){
+  if(installEvt){ installEvt.prompt(); await installEvt.userChoice; installEvt=null; $('#install-box').hidden=true; }
+}
+// iPhone no tiene botón de instalar: se explica cómo hacerlo.
+if(/iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone()){
+  $('#install-box').hidden=false; $('#install').hidden=true;
+  $('#install-msg').textContent='Para tenerla como app: tocá Compartir y después "Agregar a inicio".';
+}
+if('serviceWorker' in navigator && !DEMO_MODE) navigator.serviceWorker.register('sw.js').catch(()=>{});
+
 /* ============ Inicio y actualización automática ============ */
 (function init(){
   const t=new Date(); t.setHours(0,0,0,0);
   const days=weekDays();
   state.date = days.find(d=>sameDay(d,t)) || days[0];
   if(!DEMO_MODE) restoreDays();
+  state.incoming=incomingFavs();
   load(state.date);
-  setInterval(()=>{ if(document.visibilityState==='visible') load(state.date, true); }, CONFIG.REFRESH_MS);
+  setInterval(()=>{ if(document.visibilityState==='visible') state.view==='semana' ? loadWeek() : load(state.date, true); }, CONFIG.REFRESH_MS);
   setInterval(()=>{ if(document.visibilityState==='visible' && !state._focusQ) render(); }, 30000);
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'){ const e=state.cache[keyOf(state.date)]; if(!e||Date.now()-e.at>60000) load(state.date,true); }});
 })();
