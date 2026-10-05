@@ -187,26 +187,74 @@ function parseCSV(text){
   return rows;
 }
 
+// La planilla mezcla "7:30", "9.00", "16.00" y hasta "7:.30".
 function toMin(v){
-  const m=String(v??'').match(/(\d{1,2})[:.](\d{2})/);
+  const m=String(v??'').match(/(\d{1,2})\s*[:.]+\s*(\d{2})/);
   return m ? (+m[1])*60 + (+m[2]) : null;
 }
 const fmtMin = n => `${Math.floor(n/60)}:${pad(n%60)}`;
 
+// "5/10/2026", "02 /10/26", "SABADO 03/10/2026" → {d,m}
+function dateFromText(s){
+  const m=String(s??'').match(/(?:^|[^\d\/])(\d{1,2})\s*\/\s*(\d{1,2})/);
+  return m ? {d:+m[1], m:+m[2]} : null;
+}
+// Fecha de D3: {d,m}, {d:null,m} si falta el día ("miercole /09/26"), o null.
+function dateInCell(s){
+  const f=dateFromText(s); if(f) return f;
+  const m=String(s??'').match(/\/\s*(\d{1,2})\s*\/\s*\d{2,4}/);
+  return m ? {d:null, m:+m[1]} : null;
+}
+// ¿La fecha escrita adentro de la hoja contradice el día pedido?
+const dateMismatch = (f,date) => !!f && (f.m!==date.getMonth()+1 || (f.d!=null && f.d!==date.getDate()));
+
+// Fecha escrita dentro de la hoja (D3). null si falta o es ilegible ("miercole /09/26").
 function findDate(rows){
-  for(const r of rows.slice(0,8)) for(const c of r){
-    const m=String(c).match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
-    if(m && /(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d\/\d)/i.test(c)) return {d:+m[1],m:+m[2]};
+  for(const r of rows.slice(0,10)) for(const c of r){
+    if(!/(lunes|martes|mi[eé]rcole|jueves|viernes|s[aá]bado|domingo)/i.test(c)) continue;
+    const f=dateInCell(c); if(f) return f;
   }
   return null;
 }
 
-const ROOM_RX=[/\bEN\s+(.+?)\s+(?:POR|X)\s*HOY\b/i,/\b(?:POR|X)\s*HOY\s+(?:EN\s+)?(.+)$/i];
+// Lista de pestañas {name,gid} desde la página htmlview (pública y con CORS).
+function parseTabs(html){
+  const out=[], rx=/\{name:\s*"((?:[^"\\]|\\.)*)",\s*pageUrl:[^}]*?gid:\s*"(\d+)"/g;
+  let m;
+  while((m=rx.exec(html))){
+    let name=m[1];
+    try{ name=JSON.parse('"'+name.replace(/\\x([0-9a-f]{2})/gi,'\\u00$1')+'"') }catch{}
+    out.push({name, gid:m[2]});
+  }
+  return out;
+}
+const tabFor = (tabs,date) => tabs.find(t=>{const f=dateFromText(t.name); return f && f.d===date.getDate() && f.m===date.getMonth()+1;});
+
+// Celdas tal cual se ven en la planilla, desde htmlview/sheet. Sin inferencia de tipos.
+function parseSheetHtml(html){
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  const table=doc.querySelector('table.waffle')||doc.querySelector('table');
+  if(!table) throw new Error('no-table');
+  return [...table.querySelectorAll('tbody tr')].map(tr=>{
+    const row=[];
+    for(const td of tr.querySelectorAll('td')){
+      row.push(td.textContent.trim());
+      for(let k=1;k<(+td.getAttribute('colspan')||1);k++) row.push('');
+    }
+    return row;
+  });
+}
+
+const ROOM_RX=[/\bEN\s+(.+?)\s+(?:POR|X)\s*HOY\b/i,/\bAULA\s+(\S+)\s+(?:POR|X)\s*HOY\b/i,/\b(?:POR|X)\s*HOY\s+(?:EN\s+)?(.+)$/i];
 function roomFrom(s){
   const t=String(s||'').trim(); if(!t) return null;
   for(const rx of ROOM_RX){const m=t.match(rx); if(m && m[1].trim()) return m[1].trim().toUpperCase();}
   return null;
 }
+
+const favId = (asig,secc) => `${norm(asig)}|${norm(secc)}`;
+// Estrellas guardadas con el formato viejo "CARRERA|ASIG|SECC|TIPO".
+const migrateFav = id => { const p=String(id).split('|'); return p.length===4 ? favId(p[1],p[2]) : id; };
 
 function parseRows(rows){
   const col={n:0,sem:1,car:2,asig:3,secc:4,tipo:5,doc:6,obs:7,reem:8,ini:9,fin:10,aula:11,asis:12};
@@ -214,8 +262,10 @@ function parseRows(rows){
   const h=rows.findIndex(r=>r.some(c=>norm(c)==='ASIGNATURA'));
   if(h>=0){
     start=h+1;
-    const names={SEMESTRE:'sem',CARRERA:'car',ASIGNATURA:'asig',SECC:'secc',TIPO:'tipo',DOCENTE:'doc',OBSERVACION:'obs',REEMPLAZANTE:'reem','HORA INICIO':'ini','HORA FIN':'fin',AULA:'aula'};
-    rows[h].forEach((c,i)=>{const k=norm(c); if(names[k]) col[names[k]]=i; if(/^\(?P\s*-\s*R/.test(k)) col.asis=i;});
+    // Por prefijo: varía entre pestañas ("HORA FIN"/"HORA FINAL", "REEMPLAZANTE"/"REMPLAZANTE").
+    const names=[[/^SEMESTRE/,'sem'],[/^CARRERA/,'car'],[/^ASIGNATURA/,'asig'],[/^SECC/,'secc'],[/^TIPO/,'tipo'],[/^DOCENTE/,'doc'],
+      [/^OBSERVACI/,'obs'],[/^RE+M?PLAZ/,'reem'],[/^HORA INI/,'ini'],[/^HORA FIN/,'fin'],[/^AULA/,'aula'],[/^\(?P\s*-\s*R/,'asis']];
+    rows[h].forEach((c,i)=>{const k=norm(c); const hit=names.find(([rx])=>rx.test(k)); if(hit) col[hit[1]]=i;});
   }
   const classes=[];
   for(let i=start;i<rows.length;i++){
@@ -231,7 +281,9 @@ function parseRows(rows){
     const aula=g('aula').replace(/^-+$/,'');
     const doc=g('doc'), asis=norm(g('asis'));
     classes.push({
-      id:`${carRaw}|${norm(asig)}|${norm(g('secc'))}|${norm(g('tipo'))}`,
+      // Materia + sección: la misma estrella vale para teoría y práctica y para todos los días
+      // (TIPO y CARRERA se escriben distinto según la pestaña: "T"/"TEO", "CB"/"CB-ECA").
+      id:favId(asig, g('secc')),
       sem:g('sem'), car:carRaw, carreras, asig, secc:g('secc'), tipo:g('tipo'),
       doc, obs, reem, ini, fin: fin ?? ini+110, aula, moved, asis,
       dtic: !doc && !asis && (carreras.includes('ECA') || norm(aula)==='CTC')
@@ -378,9 +430,24 @@ const store = {
 };
 const state = {
   date: null, view: 'mis', q: '', car: store.get('fiuna-car','Todas'),
-  hideDone: true, favs: new Set(store.get('fiuna-favs',[])),
+  hideDone: true, favs: new Set(store.get('fiuna-favs',[]).map(migrateFav)),
   cache: {}, loading: false, lastFetch: null
 };
+store.set('fiuna-favs',[...state.favs]);
+
+// Último dato leído de cada día, para abrir al instante o sin señal. Se guardan los 7 más recientes.
+function saveDay(k, entry){
+  if(!entry.classes) return;
+  const all=store.get('fiuna-days',{});
+  all[k]={...entry, at:entry.at.getTime(), staleError:undefined};
+  const keep=Object.keys(all).sort().slice(-7), out={};
+  keep.forEach(x=>out[x]=all[x]);
+  store.set('fiuna-days',out);
+}
+function restoreDays(){
+  const all=store.get('fiuna-days',{});
+  for(const [k,e] of Object.entries(all)) if(e && e.classes) state.cache[k]={...e, at:new Date(e.at)};
+}
 const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const sameDay = (a,b) => keyOf(a)===keyOf(b);
 const nowMin = () => { const n=new Date(); return n.getHours()*60+n.getMinutes(); };
@@ -395,31 +462,56 @@ function weekDays(){
 }
 
 /* ============ Lectura de la planilla ============ */
-async function fetchGviz(name){
-  const url=`https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:csv&headers=0&sheet=${encodeURIComponent(name)}&_=${Date.now()}`;
-  const r=await fetch(url,{cache:'no-store'});
+const SHEET_BASE=`https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}`;
+async function fetchText(url){
+  const r=await fetch(`${url}${url.includes('?')?'&':'?'}_=${Date.now()}`,{cache:'no-store'});
   if(!r.ok) throw new Error('http '+r.status);
-  const t=await r.text();
+  return r.text();
+}
+// gviz: liviano, pero si el nombre no existe devuelve la PRIMERA hoja sin avisar,
+// y su inferencia de tipos borra textos en columnas de horas ("9.00", "HORA INICIO").
+async function fetchGviz(name){
+  const t=await fetchText(`${SHEET_BASE}/gviz/tq?tqx=out:csv&headers=0&sheet=${encodeURIComponent(name)}`);
   if(/^\s*</.test(t)) throw new Error('no-csv');
   return parseCSV(t);
+}
+
+let tabsCache=null;
+async function fetchTabs(force){
+  if(!force && tabsCache && Date.now()-tabsCache.at<10*60000) return tabsCache.tabs;
+  const tabs=parseTabs(await fetchText(`${SHEET_BASE}/htmlview`));
+  if(!tabs.length) throw new Error('no-tabs');
+  tabsCache={tabs, at:Date.now()};
+  return tabs;
+}
+
+// Camino principal: pestañas reales (htmlview) → hoja por gid con los valores tal cual se ven.
+async function loadViaHtmlview(date){
+  let tabs=await fetchTabs(), tab=tabFor(tabs,date);
+  if(!tab){ tabs=await fetchTabs(true); tab=tabFor(tabs,date); }   // quizá la renombraron recién
+  if(!tab) return {missing:true};
+  let rows;
+  try{ rows=parseSheetHtml(await fetchText(`${SHEET_BASE}/htmlview/sheet?headers=false&gid=${tab.gid}`)); }
+  catch{ rows=parseCSV(await fetchText(`${SHEET_BASE}/gviz/tq?tqx=out:csv&headers=0&gid=${tab.gid}`)); }
+  const parsed=parseRows(rows), f=parsed.fecha;
+  // La pestaña ya se llama como el día pero adentro dice otra fecha: todavía no la actualizaron.
+  if(dateMismatch(f,date)) return {missing:true};
+  return {...parsed, sheet:tab.name, unconfirmed:!f || f.d==null};
 }
 
 async function loadViaApi(date){
   const base=`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}`;
   const meta=await (await fetch(`${base}?key=${CONFIG.API_KEY}&fields=sheets.properties.title`)).json();
   if(meta.error) throw new Error(meta.error.message);
-  const d=date.getDate(), m=date.getMonth()+1;
-  const title=(meta.sheets||[]).map(s=>s.properties.title).find(t=>{
-    const x=t.match(/(\d{1,2})\/(\d{1,2})/); return x && +x[1]===d && +x[2]===m;
-  });
-  if(!title) return {missing:true};
-  const v=await (await fetch(`${base}/values/${encodeURIComponent(`'${title}'!A1:Z300`)}?key=${CONFIG.API_KEY}`)).json();
-  const parsed=parseRows(v.values||[]);
-  return {...parsed, sheet:title};
+  const tab=tabFor((meta.sheets||[]).map(s=>({name:s.properties.title})), date);
+  if(!tab) return {missing:true};
+  const v=await (await fetch(`${base}/values/${encodeURIComponent(`'${tab.name}'!A1:Z300`)}?key=${CONFIG.API_KEY}`)).json();
+  const parsed=parseRows(v.values||[]), f=parsed.fecha;
+  if(dateMismatch(f,date)) return {missing:true};
+  return {...parsed, sheet:tab.name, unconfirmed:!f || f.d==null};
 }
 
 async function loadViaGviz(date){
-  const d=date.getDate(), m=date.getMonth()+1;
   const known=store.get('fiuna-sheets',{})[keyOf(date)];
   const cands=sheetNameCandidates(date); if(known) cands.unshift(known);
   for(let i=0;i<cands.length;i+=4){
@@ -428,7 +520,7 @@ async function loadViaGviz(date){
     for(let j=0;j<res.length;j++){
       if(res[j].status!=='fulfilled') continue;
       const parsed=parseRows(res[j].value);
-      if(parsed.fecha && parsed.fecha.d===d && parsed.fecha.m===m){
+      if(parsed.fecha && parsed.fecha.d!=null && !dateMismatch(parsed.fecha,date)){
         const map=store.get('fiuna-sheets',{}); map[keyOf(date)]=batch[j]; store.set('fiuna-sheets',map);
         return {...parsed, sheet:batch[j]};
       }
@@ -446,8 +538,12 @@ async function load(date, silent){
     let res;
     if(DEMO_MODE) res= keyOf(date)!=='2026-10-05' ? {missing:true} : {...parseRows(DEMO.split('\n').map(l=>l.split('|'))), sheet:'Demo lunes 5/10/2026', demo:true};
     else if(CONFIG.API_KEY) res=await loadViaApi(date);
-    else res=await loadViaGviz(date);
+    else{
+      try{ res=await loadViaHtmlview(date); }
+      catch(e){ console.warn('htmlview falló, se adivina el nombre por gviz', e); res=await loadViaGviz(date); }
+    }
     state.cache[k]={...res, at:new Date()};
+    if(!DEMO_MODE) saveDay(k, state.cache[k]);
   }catch(e){
     if(!state.cache[k] || !state.cache[k].classes) state.cache[k]={error:String(e.message||e), at:new Date()};
     else state.cache[k].staleError=true;
@@ -511,7 +607,9 @@ function plateHtml(c){
 
 function viewMis(classes){
   let h='';
-  const mine=classes.filter(c=>state.favs.has(c.id));
+  // Una misma clase figura una vez por carrera (CB-ECA, CB-MCT): mostrarla una sola vez.
+  const seen=new Set();
+  const mine=classes.filter(c=>{const k=`${c.id}|${c.ini}`; if(!state.favs.has(c.id)||seen.has(k)) return false; seen.add(k); return true;});
   const q=norm(state.q);
   if(mine.length){
     const upcoming=mine.filter(c=>timeState(c)!=='done');
@@ -597,6 +695,7 @@ function render(){
 
   let pre='';
   if(entry.demo) pre+=`<div class="notice">Modo demo con los datos del lunes 5/10/2026.</div>`;
+  if(entry.unconfirmed) pre+=`<div class="notice warn">La pestaña de este día todavía no tiene la fecha cargada en su encabezado. Puede que la planilla no esté actualizada.</div>`;
   if(entry.staleError) pre+=`<div class="notice warn">No se pudo actualizar. Estás viendo los datos de las ${entry.at.getHours()}:${pad(entry.at.getMinutes())}.</div>`;
 
   main.innerHTML = pre + (state.view==='mis'?viewMis(classes):state.view==='horario'?viewHorario(classes):viewAvisos(classes));
@@ -607,7 +706,7 @@ function render(){
 /* ============ Eventos ============ */
 document.addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
-  if(b.dataset.d){ const [y,m,d]=b.dataset.d.split('-').map(Number); state.date=new Date(y,m-1,d); if(!state.cache[b.dataset.d]) load(state.date); else render(); }
+  if(b.dataset.d){ const [y,m,d]=b.dataset.d.split('-').map(Number); state.date=new Date(y,m-1,d); const e=state.cache[b.dataset.d]; if(!e) load(state.date); else { render(); if(Date.now()-e.at>60000) load(state.date,true); } }
   else if(b.dataset.v){ state.view=b.dataset.v; render(); window.scrollTo({top:0}); }
   else if(b.dataset.car){ state.car=b.dataset.car; store.set('fiuna-car',state.car); render(); }
   else if(b.dataset.fav){ const id=b.dataset.fav; state.favs.has(id)?state.favs.delete(id):state.favs.add(id); store.set('fiuna-favs',[...state.favs]); render(); }
@@ -624,6 +723,7 @@ document.addEventListener('focusout',e=>{ if(e.target.id==='q') state._focusQ=fa
   const t=new Date(); t.setHours(0,0,0,0);
   const days=weekDays();
   state.date = days.find(d=>sameDay(d,t)) || days[0];
+  if(!DEMO_MODE) restoreDays();
   load(state.date);
   setInterval(()=>{ if(document.visibilityState==='visible') load(state.date, true); }, CONFIG.REFRESH_MS);
   setInterval(()=>{ if(document.visibilityState==='visible' && !state._focusQ) render(); }, 30000);
