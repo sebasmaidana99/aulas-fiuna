@@ -3,14 +3,15 @@
   "short_name": "Mi clase",
   "description": "En qué aula es tu clase hoy en la FIUNA, si el profesor ya vino y los cambios del día.",
   "lang": "es",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#F3F5F4",
   "theme_color": "#0E2A47",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icons/brand-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/brand-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/brand-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
