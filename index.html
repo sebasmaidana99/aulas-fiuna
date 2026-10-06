@@ -198,6 +198,8 @@ nav.views button{padding-left:2px;padding-right:2px}
 /* ===== Recorrido guiado sobre la app ===== */
 .linkish{border:0;background:none;padding:0;color:var(--ink-2);text-decoration:underline;font-size:13px}
 .coach{position:fixed;inset:0;z-index:20}
+.coach.interactive{pointer-events:none}
+.coach.interactive .coach-tip{pointer-events:auto}
 .coach-hole{position:fixed;left:50%;top:50%;width:0;height:0;border-radius:12px;box-shadow:0 0 0 200vmax color-mix(in srgb,#0B0F14 62%,transparent);outline:2px solid var(--signal);outline-offset:2px;transition:left .4s var(--ease),top .4s var(--ease),width .4s var(--ease),height .4s var(--ease);pointer-events:none}
 .coach-hole::after{content:"";position:absolute;inset:-2px;border-radius:inherit;border:2px solid var(--signal);animation:ring 1.6s var(--ease) infinite}
 @keyframes ring{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(1.12)}}
@@ -339,7 +341,8 @@ function dateInCell(s){
   return m ? {d:null, m:+m[1]} : null;
 }
 // ¿La fecha escrita adentro de la hoja contradice el día pedido?
-const dateMismatch = (f,date) => !!f && (f.m!==date.getMonth()+1 || (f.d!=null && f.d!==date.getDate()));
+// Solo descarta si D3 dice claramente otro día. Sin día legible ("miercole /09/26") se muestra con aviso.
+const dateMismatch = (f,date) => !!f && f.d!=null && (f.d!==date.getDate() || f.m!==date.getMonth()+1);
 
 // Fecha escrita dentro de la hoja (D3). null si falta o es ilegible ("miercole /09/26").
 function findDate(rows){
@@ -801,7 +804,7 @@ const unb64u = str => decodeURIComponent(escape(atob(str.replace(/-/g,'+').repla
 const shareUrl = () => `${location.origin}${location.pathname}?mis=${b64u(JSON.stringify([...state.favs]))}`;
 function shareHtml(){
   if(!state.favs.size) return '';
-  return `<div class="share"><button class="share-btn" id="share" type="button"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>Pasar mis clases a otro dispositivo</button><p class="hint" id="share-msg">Genera un link con tus ${state.favs.size} ${state.favs.size===1?'materia':'materias'}. Abrilo en el otro celular o compu.</p></div>`;
+  return `<div class="share"><button class="share-btn" id="share" type="button"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>Pasar mis clases a otro dispositivo</button><p class="hint" id="share-msg">Genera un link con ${state.favs.size===1?'tu materia':`tus ${state.favs.size} materias`}. Abrilo en el otro celular o compu.</p></div>`;
 }
 async function shareFavs(){
   const url=shareUrl(), msg=$('#share-msg');
@@ -1001,6 +1004,7 @@ document.addEventListener('click',e=>{
     const id=b.dataset.fav, on=!state.favs.has(id);
     on?state.favs.add(id):state.favs.delete(id); store.set('fiuna-favs',[...state.favs]);
     if(on && state.favs.size===1) track('primera-materia-marcada');
+    if(on) coachFavAdded();
     state._pop=on?id:null; render(); state._pop=null;
     $('#live').textContent=on?'Agregada a Mis clases':'Quitada de Mis clases';
   }
@@ -1018,96 +1022,138 @@ document.addEventListener('input',e=>{
 document.addEventListener('focusout',e=>{ if(e.target.id==='q') state._focusQ=false; });
 
 /* ============ Recorrido guiado (solo la primera vez) ============ */
-// Cada paso ilumina un control real. Si no existe en ese momento (p. ej. no hay planilla), se explica igual en el centro.
+// Empieza pidiendo que registre su primera materia (interactivo) y después muestra cada control real.
+// Si un control no existe en ese momento, el paso se explica igual en el centro.
+const hasFavs = () => state.favs.size>0;
 const COACH=[
+  {view:'mis', interactive:true, t:['.search','#results'], when:()=>!coach.hadFavs,
+   h:'Registrá tu primera materia', p:'Escribí el nombre de tu materia o el apellido del docente, y tocá la ⭐ de tu sección.', next:'Lo hago después'},
+  {view:'mis', t:()=>document.querySelector('#main .plate')?'#main .plate':'#main .list', when:hasFavs,
+   h:'¡Listo! Esta es tu clase', p:()=>document.querySelector('#main .plate')
+     ? 'Cada vez que abras la app vas a ver primero tu próxima clase, en grande.'
+     : 'Acá aparecen tus clases del día. Cuando tengas una por empezar o en curso, la vas a ver en grande arriba de todo.'},
+  {view:'mis', demo:true, t:()=>hasFavs()?'.plate .code, #main .list .cls .room':'#results .cls .room',
+   h:'El aula', p:'En grande, el aula de ese día. Si la cambiaron, se ve en otro color y la habitual aparece tachada.'},
+  {view:'mis', demo:true, t:()=>hasFavs()?'.plate .st, #main .list .cls .st':'#results .cls .st',
+   h:'¿Vino el profe?', p:'Sala de Profesores carga la asistencia durante el día: presente, ausente o reemplazo. "Aún no registrado" quiere decir que todavía no pasaron.'},
+  {view:'mis', demo:true, t:'#results .star', when:()=>!hasFavs(),
+   h:'La estrella', p:'Tocala para guardar la materia en Mis clases. Vale para teoría y práctica, y para todos los días. Se guarda en este celular.'},
   {view:'mis', t:'#week', h:'Elegí el día', p:'Tocá un día para ver sus clases. Hoy está en azul; los días en gris todavía no tienen planilla.'},
   {view:'mis', t:'#refresh', h:'Actualizar', p:'La página se actualiza sola cada 2 minutos. Tocá acá para traer lo último en el momento.'},
-  {view:'mis', t:'[data-v="mis"]', h:'Mis clases', p:'Tus materias marcadas. Tu próxima clase aparece en grande, con el aula y si vino el docente.'},
-  {view:'mis', t:'.search', demo:true, h:'Buscar', p:'Escribí la materia, el apellido del docente o el aula. Podés combinar palabras. La ✕ borra la búsqueda.'},
-  {view:'mis', t:'#results .star', demo:true, h:'La estrella', p:'Tocala para guardar la materia en Mis clases. Vale para teoría y práctica, y para todos los días. Se guarda en este celular.'},
-  {view:'mis', t:'#results .cls .room', demo:true, h:'El aula', p:'En grande, el aula de ese día. Si la cambiaron, se ve en otro color y la habitual aparece tachada.'},
-  {view:'mis', t:'#results .cls .st', demo:true, h:'¿Vino el profe?', p:'Sala de Profesores carga la asistencia durante el día: presente, ausente o reemplazo. "Aún no registrado" quiere decir que todavía no pasaron.'},
-  {view:'mis', t:'#share', h:'Pasar a otro dispositivo', p:'Cuando tengas materias marcadas, aparece abajo de Mis clases. Genera un link para abrir tus clases en otro celular o en la compu.'},
-  {view:'semana', t:'[data-v="semana"]', h:'Semana', p:'Todas tus clases de lunes a sábado en una sola lista, con los cambios destacados. Tocá un día de arriba para ir a ese día.'},
+  {view:'mis', t:'.search', h:'Agregar más materias', p:'Buscá por materia, docente o aula y tocá la ⭐. Podés combinar palabras; la ✕ borra la búsqueda.'},
+  {view:'mis', t:'#share', h:'Pasar a otro dispositivo', p:'Genera un link para abrir tus clases en otro celular o en la compu. Aparece cuando tenés materias marcadas.'},
+  {view:'semana', t:'[data-v="semana"]', h:'Semana', p:'Todas tus clases de lunes a sábado en una sola lista, con los cambios destacados.'},
   {view:'horario', t:'[data-v="horario"]', h:'Por horario', p:'Todas las clases del día, agrupadas por hora de inicio. La que está en curso se marca en azul.'},
   {view:'horario', t:'.chips', h:'Filtrar por carrera', p:'Elegí tu carrera para ver solo sus clases. Se recuerda para la próxima vez.'},
   {view:'horario', t:'.toggle', h:'Ocultar las que terminaron', p:'Aparece en el día de hoy. Desmarcalo para ver también las clases de más temprano.'},
   {view:'avisos', t:'[data-v="avisos"]', h:'Avisos', p:'Clases que no se dan, docentes ausentes, cambios de aula y reemplazos. El número rojo cuenta solo las novedades de tus materias.'},
   {view:'mis', t:'footer', h:'Más opciones', p:'Abajo de todo: instalar la app en el celular, ver la planilla original y volver a ver este recorrido.'}
 ];
-const coach={i:0, on:false};
+const coach={i:0, on:false, hadFavs:false};
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const stepOn = i => !COACH[i].when || COACH[i].when();
+const visibleSteps = () => COACH.map((_,i)=>i).filter(stepOn);
+const targetsOf = st => { const t=typeof st.t==='function'?st.t():st.t; return (Array.isArray(t)?t:[t]).map(s=>document.querySelector(s)).filter(Boolean); };
 
-// Búsqueda de ejemplo para mostrar estrella, aula y estado sobre una clase real del día.
+// Búsqueda de ejemplo (solo si todavía no marcó nada) para mostrar estrella, aula y estado sobre una clase real.
 function coachDemoQuery(){
   const e=state.cache[keyOf(state.date)]; if(!e || !e.classes) return '';
   const c=e.classes.find(c=>c.moved&&c.doc) || e.classes.find(c=>c.doc&&c.aula) || e.classes[0];
   return c ? `${c.asig} ${String(c.doc).split(' ').pop()}`.toLowerCase() : '';
 }
 
-function coachGo(i){
-  coach.i=Math.max(0,Math.min(COACH.length-1,i));
-  const st=COACH[coach.i];
-  const wantQ = st.demo ? coachDemoQuery() : '';
+function coachGo(i, dir=1){
+  while(i>=0 && i<COACH.length && !stepOn(i)) i+=dir;   // saltear pasos que no aplican
+  if(i<0) i=visibleSteps()[0];
+  if(i>=COACH.length){ coachDone(); return; }
+  coach.i=i;
+  const st=COACH[i];
+  const wantQ = st.demo && !hasFavs() ? coachDemoQuery() : st.interactive ? state.q : '';
   if(state.view!==st.view || state.q!==wantQ){ state.view=st.view; state.q=wantQ; render(); if(st.view==='semana') loadWeek(); }
-  $('#coach-n').textContent=`${coach.i+1} de ${COACH.length}`;
-  $('#coach-h').textContent=st.h; $('#coach-p').textContent=st.p;
-  $('#coach-back').hidden=coach.i===0;
-  $('#coach-next').textContent= coach.i===COACH.length-1 ? 'Terminar' : 'Siguiente';
+  const vis=visibleSteps();
+  $('#coach').classList.toggle('interactive', !!st.interactive);
+  $('#coach-n').textContent=`${vis.indexOf(i)+1} de ${vis.length}`;
+  $('#coach-h').textContent=st.h; $('#coach-p').textContent=typeof st.p==='function'?st.p():st.p;
+  $('#coach-back').hidden=vis.indexOf(i)<=0;
+  $('#coach-next').textContent= st.next || (i===vis[vis.length-1] ? 'Terminar' : 'Siguiente');
   $('#coach-tip').classList.add('hide');
-  const el=document.querySelector(st.t);
   let moved=false;
-  if(el){
-    const r=el.getBoundingClientRect();
-    if(r.top<70 || r.bottom>innerHeight-220){ el.scrollIntoView({block:'center', behavior:reduceMotion()?'auto':'smooth'}); moved=true; }
+  const els=targetsOf(st);
+  if(st.interactive && els[0]){
+    // El cuadro va arriba y el buscador justo debajo, así el teclado no tapa los resultados.
+    const want=$('#coach-tip').offsetHeight+40, r=els[0].getBoundingClientRect();
+    if(Math.abs(r.top-want)>8){ window.scrollTo({top:scrollY+r.top-want, behavior:reduceMotion()?'auto':'smooth'}); moved=true; }
+  }else if(els[0]){
+    const r=els[0].getBoundingClientRect();
+    if(r.top<70 || r.bottom>innerHeight-220){ els[0].scrollIntoView({block:'center', behavior:reduceMotion()?'auto':'smooth'}); moved=true; }
   }
   setTimeout(coachPlace, moved && !reduceMotion() ? 420 : 30);
 }
 
 function coachPlace(){
   if(!coach.on) return;
-  const st=COACH[coach.i], el=document.querySelector(st.t), hole=$('#coach-hole'), tip=$('#coach-tip');
-  const vw=innerWidth, vh=innerHeight, w=tip.offsetWidth, th=tip.offsetHeight, m=16;
-  if(!el){
+  const st=COACH[coach.i], els=targetsOf(st), hole=$('#coach-hole'), tip=$('#coach-tip');
+  const vw=innerWidth, vh=(window.visualViewport?.height)||innerHeight, w=tip.offsetWidth, th=tip.offsetHeight, m=16;
+  if(!els.length){
     hole.classList.add('none');
     tip.style.left=`${(vw-w)/2}px`; tip.style.top=`${Math.max(m,(vh-th)/2)}px`;
   }else{
     hole.classList.remove('none');
-    const r=el.getBoundingClientRect(), pad=6;
-    const top=Math.max(4,r.top-pad), bottom=Math.min(vh-4,r.bottom+pad);
-    Object.assign(hole.style,{left:`${r.left-pad}px`, top:`${top}px`, width:`${r.width+pad*2}px`, height:`${Math.max(0,bottom-top)}px`});
-    const left=Math.min(Math.max(m, r.left+r.width/2-w/2), vw-m-w);
-    const y = bottom+12+th<=vh-m ? bottom+12 : top-12-th>=m ? top-12-th : vh-m-th;
+    const rs=els.map(e=>e.getBoundingClientRect()), pad=6;
+    const L=Math.min(...rs.map(r=>r.left)), R=Math.max(...rs.map(r=>r.right));
+    const top=Math.max(4,Math.min(...rs.map(r=>r.top))-pad), bottom=Math.min(vh-4,Math.max(...rs.map(r=>r.bottom))+pad);
+    Object.assign(hole.style,{left:`${L-pad}px`, top:`${top}px`, width:`${R-L+pad*2}px`, height:`${Math.max(0,bottom-top)}px`});
+    const left=Math.min(Math.max(m,(L+R)/2-w/2), vw-m-w);
+    const y = st.interactive ? Math.max(m, top-12-th)
+            : bottom+12+th<=vh-m ? bottom+12 : top-12-th>=m ? top-12-th : vh-m-th;
     tip.style.left=`${left}px`; tip.style.top=`${y}px`;
   }
   tip.classList.remove('hide');
 }
 
 function coachOpen(){
-  coach.on=true; $('#coach').hidden=false;
-  coachGo(0); $('#coach-next').focus();
+  coach.on=true; coach.hadFavs=hasFavs(); $('#coach').hidden=false;
+  state.q='';
+  coachGo(0); if(!COACH[coach.i].interactive) $('#coach-next').focus();
 }
+function coachDone(){ track('recorrido-completo'); coachClose(); }
 function coachClose(){
-  coach.on=false; $('#coach').hidden=true;
+  coach.on=false; $('#coach').hidden=true; $('#coach').classList.remove('interactive');
   store.set('fiuna-tour-visto', true);
   state.view='mis'; state.q=''; render(); window.scrollTo({top:0, behavior:'auto'});
 }
-$('#coach-next').addEventListener('click',()=>{ if(coach.i===COACH.length-1){ track('recorrido-completo'); coachClose(); } else coachGo(coach.i+1); });
-$('#coach-back').addEventListener('click',()=> coachGo(coach.i-1));
-$('#coach-skip').addEventListener('click',()=>{ track(`recorrido-saltado-paso-${coach.i+1}`); coachClose(); });
+// Marcó una materia durante el paso interactivo: festejar y seguir solo.
+function coachFavAdded(){
+  if(!coach.on || !COACH[coach.i].interactive) return;
+  track('recorrido-registro-materia');
+  $('#coach-h').textContent='¡Guardada!'; $('#coach-p').textContent='Ahora te mostramos dónde la vas a ver.';
+  setTimeout(()=>coachGo(coach.i+1), 900);
+}
+$('#coach-next').addEventListener('click',()=>{
+  if(COACH[coach.i].interactive) track('recorrido-lo-hago-despues');
+  const vis=visibleSteps(); if(coach.i===vis[vis.length-1]) coachDone(); else coachGo(coach.i+1);
+});
+$('#coach-back').addEventListener('click',()=> coachGo(coach.i-1,-1));
+$('#coach-skip').addEventListener('click',()=>{ track(`recorrido-saltado-paso-${visibleSteps().indexOf(coach.i)+1}`); coachClose(); });
 $('#tour-open').addEventListener('click',coachOpen);
 $('#coach').addEventListener('keydown',e=>{
   if(e.key==='Escape') coachClose();
-  else if(e.key==='ArrowRight') coachGo(coach.i+1);
-  else if(e.key==='ArrowLeft') coachGo(coach.i-1);
-  else if(e.key==='Tab'){ // el foco no sale del recorrido
+  else if(e.key==='ArrowRight') $('#coach-next').click();
+  else if(e.key==='ArrowLeft') coachGo(coach.i-1,-1);
+  else if(e.key==='Tab' && !COACH[coach.i].interactive){ // el foco no sale del recorrido
     const f=[...document.querySelectorAll('#coach-tip button')].filter(b=>!b.hidden); const k=f.indexOf(document.activeElement);
     e.preventDefault(); f[(k+(e.shiftKey?-1:1)+f.length)%f.length].focus();
   }
 });
-// Tocar fuera del cuadro avanza; la app no se puede usar durante el recorrido.
-$('#coach').addEventListener('click',e=>{ if(!e.target.closest('#coach-tip')) $('#coach-next').click(); });
+// Fuera del paso interactivo, tocar fuera del cuadro avanza.
+$('#coach').addEventListener('click',e=>{ if(!e.target.closest('#coach-tip') && !COACH[coach.i].interactive) $('#coach-next').click(); });
+// En el paso interactivo solo se puede usar el buscador y sus resultados.
+['pointerdown','click'].forEach(type=>document.addEventListener(type,e=>{
+  if(coach.on && COACH[coach.i].interactive && !e.target.closest('.search, #results, #coach-tip')){ e.preventDefault(); e.stopPropagation(); }
+},true));
+document.addEventListener('input',e=>{ if(coach.on && e.target.id==='q') setTimeout(coachPlace,160); });
 addEventListener('resize',()=>coach.on&&coachPlace());
+window.visualViewport?.addEventListener('resize',()=>coach.on&&coachPlace());
 addEventListener('scroll',()=>{ if(coach.on){ clearTimeout(coach.t); coach.t=setTimeout(coachPlace,60);} },{passive:true});
 
 /* ============ Métricas anónimas (GoatCounter, sin cookies) ============ */
